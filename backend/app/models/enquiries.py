@@ -28,6 +28,18 @@ class Enquiry(Base):
         nullable=False,
         index=True,
     )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    listing_owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     customer_name: Mapped[str] = mapped_column(String(160), nullable=False)
     customer_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     customer_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -51,3 +63,5 @@ class Enquiry(Base):
     )
 
     listing = relationship("Listing", back_populates="enquiries")
+    customer = relationship("User", foreign_keys=[customer_id])
+    listing_owner = relationship("User", foreign_keys=[listing_owner_id])

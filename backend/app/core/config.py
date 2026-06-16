@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default="listing-images",
         alias="MINIO_BUCKET_LISTING_IMAGES",
     )
+    max_image_upload_mb: int = Field(default=5, alias="MAX_IMAGE_UPLOAD_MB")
 
     keycloak_issuer: str = Field(
         default="http://localhost:8080/realms/marketplace",

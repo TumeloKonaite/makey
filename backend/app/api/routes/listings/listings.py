@@ -106,6 +106,8 @@ def add_listing_image(
         listing_id,
         object_name=stored_image.object_name,
         image_url=stored_image.public_url,
+        content_type=stored_image.content_type,
+        size_bytes=stored_image.size_bytes,
         display_order=display_order,
         is_cover=is_cover,
         current_user=current_user,

@@ -70,6 +70,7 @@ class Listing(Base):
         "ListingImage",
         back_populates="listing",
         cascade="all, delete-orphan",
+        order_by="ListingImage.display_order",
     )
     enquiries = relationship(
         "Enquiry",

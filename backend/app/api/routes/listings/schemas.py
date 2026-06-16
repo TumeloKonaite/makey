@@ -1,12 +1,14 @@
 from decimal import Decimal
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ListingImageCreate(BaseModel):
     object_name: str
     image_url: str
+    content_type: str
+    size_bytes: int
     display_order: int = 0
     is_cover: bool = False
 
@@ -14,6 +16,18 @@ class ListingImageCreate(BaseModel):
 class ListingImageRead(ListingImageCreate):
     id: uuid.UUID
     listing_id: uuid.UUID
+    url: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ListingImageSummary(BaseModel):
+    id: uuid.UUID
+    url: str
+    content_type: str
+    size_bytes: int
+    display_order: int
+    is_cover: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,5 +65,6 @@ class ListingRead(BaseModel):
     currency: str
     location: str | None = None
     status: str
+    images: list[ListingImageSummary] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

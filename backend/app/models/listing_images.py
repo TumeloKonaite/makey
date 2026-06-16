@@ -24,6 +24,8 @@ class ListingImage(Base):
     )
     object_name: Mapped[str] = mapped_column(String(512), nullable=False)
     image_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     display_order: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -43,3 +45,7 @@ class ListingImage(Base):
     )
 
     listing = relationship("Listing", back_populates="images")
+
+    @property
+    def url(self) -> str:
+        return self.image_url

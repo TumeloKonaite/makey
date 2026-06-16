@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, alias="API_PORT")
 
     database_url: str = Field(
-        default="postgresql://marketplace:marketplace@postgres:5432/marketplace",
+        default="postgresql+psycopg://marketplace_user:marketplace_password@postgres:5432/marketplace_db",
         alias="DATABASE_URL",
     )
 
@@ -36,4 +36,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import CurrentUser
 from app.models import Category, Listing, ListingImage, User
@@ -29,11 +29,22 @@ def get_category(db: Session, category_id: uuid.UUID) -> Category:
 
 
 def list_listings(db: Session) -> list[Listing]:
-    return list(db.scalars(select(Listing).order_by(Listing.created_at.desc())).all())
+    return list(
+        db.scalars(
+            select(Listing)
+            .options(selectinload(Listing.images))
+            .order_by(Listing.created_at.desc())
+        ).all()
+    )
 
 
 def get_listing(db: Session, listing_id: uuid.UUID) -> Listing:
-    listing = db.get(Listing, listing_id)
+    listing = db.scalar(
+        select(Listing)
+        .options(selectinload(Listing.images))
+        .where(Listing.id == listing_id)
+        .limit(1)
+    )
     if listing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -105,6 +116,8 @@ def add_listing_image(
     listing_id: uuid.UUID,
     object_name: str,
     image_url: str,
+    content_type: str,
+    size_bytes: int,
     display_order: int,
     is_cover: bool,
     current_user: CurrentUser,
@@ -115,6 +128,8 @@ def add_listing_image(
         listing_id=listing_id,
         object_name=object_name,
         image_url=image_url,
+        content_type=content_type,
+        size_bytes=size_bytes,
         display_order=display_order,
         is_cover=is_cover,
     )

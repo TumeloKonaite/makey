@@ -15,7 +15,6 @@ ALLOWED_IMAGE_TYPES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
-    "image/gif": ".gif",
 }
 
 
@@ -27,6 +26,8 @@ class InvalidImageFile(ValueError):
 class StoredImage:
     object_name: str
     public_url: str
+    content_type: str
+    size_bytes: int
 
 
 def _parse_minio_endpoint(endpoint: str) -> tuple[str, bool]:
@@ -95,18 +96,21 @@ class MinioImageStorage:
         extension = self._validate_image(file)
         object_name = f"listings/{listing_id}/{uuid.uuid4()}{extension}"
         size = self._get_file_size(file)
+        content_type = (file.content_type or "").lower()
 
         self.client.put_object(
             self.bucket_name,
             object_name,
             file.file,
             length=size,
-            content_type=file.content_type,
+            content_type=content_type,
         )
 
         return StoredImage(
             object_name=object_name,
             public_url=self.build_public_url(object_name),
+            content_type=content_type,
+            size_bytes=size,
         )
 
     def build_public_url(self, object_name: str) -> str:
@@ -117,7 +121,7 @@ class MinioImageStorage:
         content_type = (file.content_type or "").lower()
         extension = ALLOWED_IMAGE_TYPES.get(content_type)
         if extension is None:
-            raise InvalidImageFile("Only JPEG, PNG, WebP, and GIF images are allowed.")
+            raise InvalidImageFile("Only JPEG, PNG, and WebP images are allowed.")
         return extension
 
     def _get_file_size(self, file: UploadFile) -> int:
@@ -126,4 +130,9 @@ class MinioImageStorage:
         file.file.seek(0)
         if size <= 0:
             raise InvalidImageFile("Uploaded image file is empty.")
+        max_size = self.settings.max_image_upload_mb * 1024 * 1024
+        if size > max_size:
+            raise InvalidImageFile(
+                f"Uploaded image exceeds the {self.settings.max_image_upload_mb} MB limit."
+            )
         return size

@@ -13,6 +13,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET_LISTING_IMAGES: ${MINIO_BUCKET_LISTING_IMAGES:-listing-images}
+      MAX_IMAGE_UPLOAD_MB: ${MAX_IMAGE_UPLOAD_MB:-5}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/marketplace}
       KEYCLOAK_AUTHORIZED_PARTY: ${KEYCLOAK_AUTHORIZED_PARTY:-marketplace-api}
       KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL:-http://keycloak:8080/realms/marketplace/protocol/openid-connect/certs}

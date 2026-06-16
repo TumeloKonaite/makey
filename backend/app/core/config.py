@@ -19,11 +19,17 @@ class Settings(BaseSettings):
     minio_secret_key: str = Field(default="minioadmin", alias="MINIO_SECRET_KEY")
     minio_bucket: str = Field(default="listings", alias="MINIO_BUCKET")
 
-    keycloak_url: str = Field(default="http://keycloak:8080", alias="KEYCLOAK_URL")
-    keycloak_realm: str = Field(default="marketplace", alias="KEYCLOAK_REALM")
-    keycloak_client_id: str = Field(
-        default="marketplace-web",
-        alias="KEYCLOAK_CLIENT_ID",
+    keycloak_issuer: str = Field(
+        default="http://localhost:8080/realms/marketplace",
+        alias="KEYCLOAK_ISSUER",
+    )
+    keycloak_authorized_party: str = Field(
+        default="marketplace-api",
+        alias="KEYCLOAK_AUTHORIZED_PARTY",
+    )
+    keycloak_jwks_url: str = Field(
+        default="http://localhost:8080/realms/marketplace/protocol/openid-connect/certs",
+        alias="KEYCLOAK_JWKS_URL",
     )
 
     model_config = SettingsConfigDict(

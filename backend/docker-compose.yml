@@ -12,9 +12,9 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-listings}
-      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-marketplace}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-marketplace-web}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/marketplace}
+      KEYCLOAK_AUTHORIZED_PARTY: ${KEYCLOAK_AUTHORIZED_PARTY:-marketplace-api}
+      KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL:-http://keycloak:8080/realms/marketplace/protocol/openid-connect/certs}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -52,7 +52,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     ports:
-      - "${KEYCLOAK_PORT:-8080}:8080"
+      - "8080:8080"
 
 volumes:
   postgres_data:

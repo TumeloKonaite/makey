@@ -14,10 +14,20 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
-    minio_endpoint: str = Field(default="minio:9000", alias="MINIO_ENDPOINT")
-    minio_access_key: str = Field(default="minioadmin", alias="MINIO_ACCESS_KEY")
-    minio_secret_key: str = Field(default="minioadmin", alias="MINIO_SECRET_KEY")
-    minio_bucket: str = Field(default="listings", alias="MINIO_BUCKET")
+    minio_endpoint: str = Field(default="http://localhost:9000", alias="MINIO_ENDPOINT")
+    minio_public_url: str = Field(
+        default="http://localhost:9000",
+        alias="MINIO_PUBLIC_URL",
+    )
+    minio_root_user: str = Field(default="minioadmin", alias="MINIO_ROOT_USER")
+    minio_root_password: str = Field(
+        default="minioadmin",
+        alias="MINIO_ROOT_PASSWORD",
+    )
+    minio_bucket_listing_images: str = Field(
+        default="listing-images",
+        alias="MINIO_BUCKET_LISTING_IMAGES",
+    )
 
     keycloak_issuer: str = Field(
         default="http://localhost:8080/realms/marketplace",

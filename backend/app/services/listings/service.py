@@ -89,22 +89,39 @@ def delete_listing(
 def add_listing_image(
     db: Session,
     listing_id: uuid.UUID,
-    payload: Any,
+    object_name: str,
+    image_url: str,
+    display_order: int,
+    is_cover: bool,
     current_user: CurrentUser,
 ) -> ListingImage:
-    _ = current_user
-    get_listing(db, listing_id)
+    ensure_listing_image_upload_allowed(db, listing_id, current_user)
+
     image = ListingImage(
         listing_id=listing_id,
-        object_name=payload.object_name,
-        image_url=payload.image_url,
-        display_order=payload.display_order,
-        is_cover=payload.is_cover,
+        object_name=object_name,
+        image_url=image_url,
+        display_order=display_order,
+        is_cover=is_cover,
     )
     db.add(image)
     db.commit()
     db.refresh(image)
     return image
+
+
+def ensure_listing_image_upload_allowed(
+    db: Session,
+    listing_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> None:
+    listing = get_listing(db, listing_id)
+    provider = _get_provider_or_forbid(db, current_user)
+    if listing.provider_id != provider.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot upload images to another provider's listing.",
+        )
 
 
 def _slugify(value: str) -> str:
@@ -141,4 +158,16 @@ def _get_or_create_provider(db: Session, current_user: CurrentUser) -> User:
     )
     db.add(provider)
     db.flush()
+    return provider
+
+
+def _get_provider_or_forbid(db: Session, current_user: CurrentUser) -> User:
+    provider = db.scalar(
+        select(User).where(User.keycloak_user_id == current_user.id).limit(1)
+    )
+    if provider is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Provider profile was not found.",
+        )
     return provider

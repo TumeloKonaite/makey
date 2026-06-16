@@ -1,12 +1,20 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.api.routes.listings.schemas import (
     CategoryRead,
     ListingCreate,
-    ListingImageCreate,
     ListingImageRead,
     ListingRead,
     ListingUpdate,
@@ -15,6 +23,7 @@ from app.core.auth import require_role
 from app.core.security import CurrentUser
 from app.models import Category, Listing, ListingImage
 from app.repository.database.tables.session_manager import get_db
+from app.repository.storage import InvalidImageFile, MinioImageStorage
 from app.services.listings import service
 
 router = APIRouter()
@@ -81,8 +90,29 @@ def delete_listing(
 )
 def add_listing_image(
     listing_id: uuid.UUID,
-    payload: ListingImageCreate,
+    file: UploadFile = File(...),
+    display_order: int = Form(0),
+    is_cover: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_role("provider")),
 ) -> ListingImage:
-    return service.add_listing_image(db, listing_id, payload, current_user)
+    service.ensure_listing_image_upload_allowed(db, listing_id, current_user)
+
+    storage = MinioImageStorage()
+    try:
+        stored_image = storage.upload_listing_image(listing_id, file)
+    except InvalidImageFile as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.add_listing_image(
+        db,
+        listing_id,
+        object_name=stored_image.object_name,
+        image_url=stored_image.public_url,
+        display_order=display_order,
+        is_cover=is_cover,
+        current_user=current_user,
+    )

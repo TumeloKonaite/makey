@@ -143,6 +143,25 @@ def get_current_user(
     return user
 
 
+def get_optional_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(http_bearer),
+    settings: Settings = Depends(get_settings),
+) -> CurrentUser | None:
+    if credentials is None or not credentials.credentials:
+        return None
+
+    payload = _decode_and_validate_token(credentials.credentials, settings)
+    user = CurrentUser(
+        sub=payload["sub"],
+        email=payload.get("email"),
+        username=payload.get("preferred_username"),
+        roles=_extract_roles(payload, settings.keycloak_authorized_party),
+    )
+    request.state.user = user
+    return user
+
+
 def require_role(role: str) -> Callable[..., CurrentUser]:
     def dependency(
         request: Request,

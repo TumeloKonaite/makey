@@ -11,7 +11,21 @@ from app.models import Category, Listing, ListingImage, User
 
 
 def list_categories(db: Session) -> list[Category]:
-    return list(db.scalars(select(Category).order_by(Category.name)).all())
+    return list(
+        db.scalars(
+            select(Category).where(Category.is_active.is_(True)).order_by(Category.name)
+        ).all()
+    )
+
+
+def get_category(db: Session, category_id: uuid.UUID) -> Category:
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Category not found",
+        )
+    return category
 
 
 def list_listings(db: Session) -> list[Listing]:

@@ -13,7 +13,6 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.routes.listings.schemas import (
-    CategoryRead,
     ListingCreate,
     ListingImageRead,
     ListingRead,
@@ -21,17 +20,12 @@ from app.api.routes.listings.schemas import (
 )
 from app.core.auth import require_role
 from app.core.security import CurrentUser
-from app.models import Category, Listing, ListingImage
+from app.models import Listing, ListingImage
 from app.repository.database.tables.session_manager import get_db
 from app.repository.storage import InvalidImageFile, MinioImageStorage
 from app.services.listings import service
 
 router = APIRouter()
-
-
-@router.get("/categories", response_model=list[CategoryRead], tags=["categories"])
-def list_categories(db: Session = Depends(get_db)) -> list[Category]:
-    return service.list_categories(db)
 
 
 @router.get("/listings", response_model=list[ListingRead], tags=["listings"])

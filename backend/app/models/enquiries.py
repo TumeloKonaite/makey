@@ -1,7 +1,19 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Time,
+    false,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,6 +26,10 @@ class Enquiry(Base):
         CheckConstraint(
             "status IN ('new', 'responded', 'closed')",
             name="ck_enquiries_status",
+        ),
+        CheckConstraint(
+            "occupant_count IS NULL OR occupant_count > 0",
+            name="ck_enquiries_occupant_count_positive",
         ),
     )
 
@@ -41,9 +57,24 @@ class Enquiry(Base):
         index=True,
     )
     customer_name: Mapped[str] = mapped_column(String(160), nullable=False)
-    customer_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    customer_email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )
     customer_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    desired_move_in_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    occupant_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_viewing_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+    preferred_viewing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    preferred_viewing_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    viewing_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,

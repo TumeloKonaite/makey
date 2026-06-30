@@ -3,10 +3,10 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import CurrentUser
-from app.models import Enquiry, User
+from app.models import Enquiry, Listing, User
 from app.services.listings import service as listing_service
 
 
@@ -19,13 +19,19 @@ def create_enquiry(
     listing = listing_service.get_listing(db, listing_id)
     customer = _get_or_create_customer(db, current_user) if current_user else None
     enquiry = Enquiry(
-        listing_id=listing.id,
+        listing=listing,
         customer_id=customer.id if customer else None,
         listing_owner_id=listing.provider_id,
         customer_name=payload.name,
         customer_email=payload.email,
         customer_phone=payload.phone,
         message=payload.message,
+        desired_move_in_date=payload.desired_move_in_date,
+        occupant_count=payload.occupant_count,
+        is_viewing_requested=payload.is_viewing_requested,
+        preferred_viewing_date=payload.preferred_viewing_date,
+        preferred_viewing_time=payload.preferred_viewing_time,
+        viewing_notes=payload.viewing_notes,
     )
     db.add(enquiry)
     db.commit()
@@ -41,6 +47,7 @@ def list_my_enquiries(db: Session, current_user: CurrentUser) -> list[Enquiry]:
     return list(
         db.scalars(
             select(Enquiry)
+            .options(selectinload(Enquiry.listing).selectinload(Listing.category))
             .where(Enquiry.customer_id == customer.id)
             .order_by(Enquiry.created_at.desc())
         ).all()
@@ -55,6 +62,7 @@ def list_my_listing_enquiries(db: Session, current_user: CurrentUser) -> list[En
     return list(
         db.scalars(
             select(Enquiry)
+            .options(selectinload(Enquiry.listing).selectinload(Listing.category))
             .where(Enquiry.listing_owner_id == provider.id)
             .order_by(Enquiry.created_at.desc())
         ).all()

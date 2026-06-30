@@ -14,6 +14,15 @@ from app.core.config import Settings, get_settings
 from app.core.security import CurrentUser
 
 http_bearer = HTTPBearer(auto_error=False)
+ROLE_ALIASES: dict[str, set[str]] = {
+    "admin": {"admin"},
+    "customer": {"customer", "renter", "tenant"},
+    "landlord": {"landlord", "owner", "provider"},
+    "owner": {"landlord", "owner", "provider"},
+    "provider": {"landlord", "owner", "provider"},
+    "renter": {"customer", "renter", "tenant"},
+    "tenant": {"customer", "renter", "tenant"},
+}
 
 
 def _auth_error(message: str) -> HTTPException:
@@ -163,14 +172,16 @@ def get_optional_current_user(
 
 
 def require_role(role: str) -> Callable[..., CurrentUser]:
+    accepted_roles = ROLE_ALIASES.get(role, {role})
+
     def dependency(
         request: Request,
         current_user: CurrentUser = Depends(get_current_user),
     ) -> CurrentUser:
-        if role not in set(current_user.roles):
+        if accepted_roles.isdisjoint(current_user.roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have the required role for this action.",
+                detail=f"You need the {role} role for this action.",
             )
         request.state.user = current_user
         return current_user

@@ -57,16 +57,16 @@ def client() -> Generator[TestClient, None, None]:
 def seed_data(db: Session) -> None:
     provider = User(
         id=provider_id,
-        keycloak_user_id="provider-1",
-        email="provider@example.com",
-        display_name="Provider One",
+        keycloak_user_id="owner-1",
+        email="owner@example.com",
+        display_name="Owner One",
         role="provider",
     )
     other_provider = User(
         id=other_provider_id,
-        keycloak_user_id="provider-2",
-        email="other-provider@example.com",
-        display_name="Provider Two",
+        keycloak_user_id="owner-2",
+        email="other-owner@example.com",
+        display_name="Owner Two",
         role="provider",
     )
     category = Category(
@@ -127,6 +127,8 @@ def test_public_listing_list_excludes_drafts(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert [listing["id"] for listing in body] == [str(published_listing_id)]
+    assert body[0]["owner_id"] == str(provider_id)
+    assert body[0]["owner_name"] == "Owner One"
     assert body[0]["rent_amount"] == "6500.00"
     assert body[0]["deposit_amount"] == "6500.00"
     assert body[0]["agent_fee"] == "1200.00"
@@ -144,6 +146,8 @@ def test_public_listing_detail_returns_published_listing(client: TestClient) -> 
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == str(published_listing_id)
+    assert body["owner_id"] == str(provider_id)
+    assert body["owner_name"] == "Owner One"
     assert body["rent_amount"] == "6500.00"
     assert body["deposit_amount"] == "6500.00"
     assert body["agent_fee"] == "1200.00"
@@ -162,8 +166,8 @@ def test_public_listing_detail_returns_404_for_draft_listing(client: TestClient)
     assert response.json() == {"detail": "Listing was not found."}
 
 
-def test_listing_owner_can_update_their_listing(client: TestClient) -> None:
-    override_user("provider-1", ["provider"])
+def test_owner_can_update_their_listing(client: TestClient) -> None:
+    override_user("owner-1", ["owner"])
 
     response = client.patch(
         f"/listings/{draft_listing_id}",
@@ -202,8 +206,8 @@ def test_listing_owner_can_update_their_listing(client: TestClient) -> None:
     assert detail_response.json()["rent_amount"] == "7200.00"
 
 
-def test_provider_can_create_listing_with_rental_fields(client: TestClient) -> None:
-    override_user("provider-1", ["provider"])
+def test_owner_can_create_listing_with_rental_fields(client: TestClient) -> None:
+    override_user("owner-1", ["owner"])
 
     response = client.post(
         "/listings",
@@ -229,7 +233,8 @@ def test_provider_can_create_listing_with_rental_fields(client: TestClient) -> N
 
     assert response.status_code == 201
     body = response.json()
-    assert body["provider_id"] == str(provider_id)
+    assert body["owner_id"] == str(provider_id)
+    assert body["owner_name"] == "Owner One"
     assert body["title"] == "Room near UCT"
     assert body["slug"] == "room-near-uct"
     assert body["rent_amount"] == "5800.00"
@@ -244,8 +249,26 @@ def test_provider_can_create_listing_with_rental_fields(client: TestClient) -> N
     assert body["currency"] == "ZAR"
 
 
+def test_legacy_provider_role_still_can_create_listing(client: TestClient) -> None:
+    override_user("owner-1", ["provider"])
+
+    response = client.post(
+        "/listings",
+        json={
+            "category_id": str(category_id),
+            "title": "Legacy role listing",
+            "price": "0.00",
+            "currency": "ZAR",
+            "status": "draft",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["owner_id"] == str(provider_id)
+
+
 def test_non_owner_cannot_update_another_listing(client: TestClient) -> None:
-    override_user("provider-2", ["provider"])
+    override_user("owner-2", ["owner"])
 
     response = client.patch(
         f"/listings/{published_listing_id}",
@@ -259,8 +282,8 @@ def test_non_owner_cannot_update_another_listing(client: TestClient) -> None:
     assert detail_response.json()["title"] == "Sunny single room in Observatory"
 
 
-def test_listing_owner_can_delete_their_listing(client: TestClient) -> None:
-    override_user("provider-1", ["provider"])
+def test_owner_can_delete_their_listing(client: TestClient) -> None:
+    override_user("owner-1", ["owner"])
 
     response = client.delete(f"/listings/{published_listing_id}")
 
@@ -271,7 +294,7 @@ def test_listing_owner_can_delete_their_listing(client: TestClient) -> None:
 
 
 def test_non_owner_cannot_delete_another_listing(client: TestClient) -> None:
-    override_user("provider-2", ["provider"])
+    override_user("owner-2", ["owner"])
 
     response = client.delete(f"/listings/{published_listing_id}")
 

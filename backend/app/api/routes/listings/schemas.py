@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, computed_field
 
 
 class ListingImageCreate(BaseModel):
@@ -76,6 +76,13 @@ class ListingUpdate(BaseModel):
 class ListingRead(BaseModel):
     id: uuid.UUID
     provider_id: uuid.UUID
+    provider_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "provider_name",
+            AliasPath("provider", "display_name"),
+        ),
+    )
     category_id: uuid.UUID
     title: str
     slug: str
@@ -96,3 +103,13 @@ class ListingRead(BaseModel):
     images: list[ListingImageSummary] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def owner_id(self) -> uuid.UUID:
+        return self.provider_id
+
+    @computed_field
+    @property
+    def owner_name(self) -> str | None:
+        return self.provider_name

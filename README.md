@@ -1,4 +1,4 @@
-# roundtable_marketplace
+# Marketplace Rooms
 
 ## Marketplace Backend Local Setup
 
@@ -147,37 +147,40 @@ Valid redirect URIs: http://localhost:5173/*
 Web origins: http://localhost:5173
 ```
 
-Create realm roles named `provider`, `customer`, and `admin`. For local testing,
-create users such as `provider@test.com` and `customer@test.com`, set passwords
-for them, and assign the matching realm role.
+Create realm roles named `owner`, `renter`, and `admin`. For local testing,
+create users such as `owner@test.com` and `renter@test.com`, set passwords for
+them, and assign the matching realm role.
+
+The API still accepts the legacy `provider` and `customer` roles during this
+transition, but new docs and examples use rental marketplace language.
 
 Detailed setup steps are documented in
 [Creating Test Users in Keycloak](docs/keycloak-test-users.md).
 
-To get a local provider access token for API testing:
+To get a local owner access token for API testing:
 
 ```bash
 curl -X POST "http://localhost:8080/realms/marketplace/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=marketplace-api" \
   -d "grant_type=password" \
-  -d "username=provider@test.com" \
+  -d "username=owner@test.com" \
   -d "password=Password123!"
 ```
 
 Copy the `access_token` value from the JSON response and send it as a bearer
-token when calling provider-only endpoints.
+token when calling owner-only endpoints.
 
 ## Troubleshooting
 
 If pytest fails before collecting tests, confirm you are in `backend/` and that
 the active interpreter comes from `backend/.venv`.
 
-If a provider-only request returns `401`, generate a fresh token and make sure
+If an owner-only request returns `401`, generate a fresh token and make sure
 Swagger receives only the raw token value, not `Bearer <token>`.
 
-If image upload returns `403`, the authenticated provider does not own that
-listing. Create the listing with the same provider token, then upload the image.
+If image upload returns `403`, the authenticated owner does not own that
+listing. Create the listing with the same owner token, then upload the image.
 
 If `image_url` does not open in a browser, confirm the API logs show successful
 startup and that the `listing-images` bucket exists in the MinIO console.

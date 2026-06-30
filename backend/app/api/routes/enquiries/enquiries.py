@@ -44,8 +44,14 @@ def list_my_enquiries(
     "/me/listing-enquiries",
     response_model=list[EnquiryRead],
     tags=["enquiries"],
+    include_in_schema=False,
 )
-def list_my_listing_enquiries(
+@router.get(
+    "/me/owner-enquiries",
+    response_model=list[EnquiryRead],
+    tags=["enquiries"],
+)
+def list_my_owner_enquiries(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[EnquiryRead]:

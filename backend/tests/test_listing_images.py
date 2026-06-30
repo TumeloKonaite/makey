@@ -59,16 +59,16 @@ def client() -> Generator[TestClient, None, None]:
 def seed_data(db: Session) -> None:
     provider = User(
         id=provider_id,
-        keycloak_user_id="provider-1",
-        email="provider@example.com",
-        display_name="Provider One",
+        keycloak_user_id="owner-1",
+        email="owner@example.com",
+        display_name="Owner One",
         role="provider",
     )
     other_provider = User(
         id=other_provider_id,
-        keycloak_user_id="provider-2",
-        email="other-provider@example.com",
-        display_name="Provider Two",
+        keycloak_user_id="owner-2",
+        email="other-owner@example.com",
+        display_name="Owner Two",
         role="provider",
     )
     category = Category(
@@ -121,8 +121,8 @@ def upload_png(client: TestClient):
     )
 
 
-def test_successful_provider_upload(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    override_user("provider-1", ["provider"])
+def test_successful_owner_upload(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    override_user("owner-1", ["owner"])
     monkeypatch.setattr(listing_routes, "MinioImageStorage", FakeStorage)
 
     response = upload_png(client)
@@ -146,16 +146,16 @@ def test_unauthenticated_upload_returns_401(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-def test_non_provider_upload_returns_403(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+def test_non_owner_upload_returns_403(client: TestClient) -> None:
+    override_user("renter-1", ["renter"])
 
     response = upload_png(client)
 
     assert response.status_code == 403
 
 
-def test_provider_cannot_upload_to_another_providers_listing(client: TestClient) -> None:
-    override_user("provider-2", ["provider"])
+def test_owner_cannot_upload_to_another_owners_listing(client: TestClient) -> None:
+    override_user("owner-2", ["owner"])
 
     response = upload_png(client)
 
@@ -163,7 +163,7 @@ def test_provider_cannot_upload_to_another_providers_listing(client: TestClient)
 
 
 def test_invalid_file_type_rejected(client: TestClient) -> None:
-    override_user("provider-1", ["provider"])
+    override_user("owner-1", ["owner"])
 
     response = client.post(
         f"/listings/{listing_id}/images",
@@ -177,7 +177,7 @@ def test_invalid_file_type_rejected(client: TestClient) -> None:
 
 
 def test_oversized_file_rejected(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    override_user("provider-1", ["provider"])
+    override_user("owner-1", ["owner"])
 
     class SmallLimitStorage(MinioImageStorage):
         def __init__(self) -> None:

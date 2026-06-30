@@ -7,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import CurrentUser
-from app.models import Category, Enquiry, Listing, ListingImage, User
+from app.models import Category, Listing, ListingImage, User
+
+PUBLISHED_LISTING_STATUS = "published"
 
 
 def list_categories(db: Session) -> list[Category]:
@@ -33,24 +35,14 @@ def list_listings(db: Session) -> list[Listing]:
         db.scalars(
             select(Listing)
             .options(selectinload(Listing.images))
+            .where(Listing.status == PUBLISHED_LISTING_STATUS)
             .order_by(Listing.created_at.desc())
         ).all()
     )
 
 
 def get_listing(db: Session, listing_id: uuid.UUID) -> Listing:
-    listing = db.scalar(
-        select(Listing)
-        .options(selectinload(Listing.images))
-        .where(Listing.id == listing_id)
-        .limit(1)
-    )
-    if listing is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Listing was not found.",
-        )
-    return listing
+    return _get_listing_or_404(db, listing_id, published_only=True)
 
 
 def create_listing(
@@ -83,8 +75,12 @@ def update_listing(
     payload: Any,
     current_user: CurrentUser,
 ) -> Listing:
-    _ = current_user
-    listing = get_listing(db, listing_id)
+    listing = ensure_listing_owner_access(
+        db,
+        listing_id,
+        current_user,
+        forbidden_detail="You cannot update another provider's listing.",
+    )
     update_data = payload.model_dump(exclude_unset=True)
 
     if "category_id" in update_data:
@@ -105,8 +101,12 @@ def delete_listing(
     listing_id: uuid.UUID,
     current_user: CurrentUser,
 ) -> None:
-    _ = current_user
-    listing = get_listing(db, listing_id)
+    listing = ensure_listing_owner_access(
+        db,
+        listing_id,
+        current_user,
+        forbidden_detail="You cannot delete another provider's listing.",
+    )
     db.delete(listing)
     db.commit()
 
@@ -139,69 +139,33 @@ def add_listing_image(
     return image
 
 
-def create_enquiry(
-    db: Session,
-    listing_id: uuid.UUID,
-    payload: Any,
-    current_user: CurrentUser | None,
-) -> Enquiry:
-    listing = get_listing(db, listing_id)
-    customer = _get_or_create_customer(db, current_user) if current_user else None
-    enquiry = Enquiry(
-        listing_id=listing.id,
-        customer_id=customer.id if customer else None,
-        listing_owner_id=listing.provider_id,
-        customer_name=payload.name,
-        customer_email=payload.email,
-        customer_phone=payload.phone,
-        message=payload.message,
-    )
-    db.add(enquiry)
-    db.commit()
-    db.refresh(enquiry)
-    return enquiry
-
-
-def list_my_enquiries(db: Session, current_user: CurrentUser) -> list[Enquiry]:
-    customer = _get_user_by_keycloak_id(db, current_user)
-    if customer is None:
-        return []
-
-    return list(
-        db.scalars(
-            select(Enquiry)
-            .where(Enquiry.customer_id == customer.id)
-            .order_by(Enquiry.created_at.desc())
-        ).all()
-    )
-
-
-def list_my_listing_enquiries(db: Session, current_user: CurrentUser) -> list[Enquiry]:
-    provider = _get_user_by_keycloak_id(db, current_user)
-    if provider is None:
-        return []
-
-    return list(
-        db.scalars(
-            select(Enquiry)
-            .where(Enquiry.listing_owner_id == provider.id)
-            .order_by(Enquiry.created_at.desc())
-        ).all()
-    )
-
-
 def ensure_listing_image_upload_allowed(
     db: Session,
     listing_id: uuid.UUID,
     current_user: CurrentUser,
 ) -> None:
-    listing = get_listing(db, listing_id)
+    ensure_listing_owner_access(
+        db,
+        listing_id,
+        current_user,
+        forbidden_detail="You cannot upload images to another provider's listing.",
+    )
+
+
+def ensure_listing_owner_access(
+    db: Session,
+    listing_id: uuid.UUID,
+    current_user: CurrentUser,
+    forbidden_detail: str,
+) -> Listing:
+    listing = _get_listing_or_404(db, listing_id)
     provider = _get_provider_or_forbid(db, current_user)
     if listing.provider_id != provider.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You cannot upload images to another provider's listing.",
+            detail=forbidden_detail,
         )
+    return listing
 
 
 def _slugify(value: str) -> str:
@@ -215,6 +179,28 @@ def _ensure_category_exists(db: Session, category_id: uuid.UUID) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Category was not found.",
         )
+
+
+def _get_listing_or_404(
+    db: Session,
+    listing_id: uuid.UUID,
+    published_only: bool = False,
+) -> Listing:
+    query = (
+        select(Listing)
+        .options(selectinload(Listing.images))
+        .where(Listing.id == listing_id)
+    )
+    if published_only:
+        query = query.where(Listing.status == PUBLISHED_LISTING_STATUS)
+
+    listing = db.scalar(query.limit(1))
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Listing was not found.",
+        )
+    return listing
 
 
 def _get_or_create_provider(db: Session, current_user: CurrentUser) -> User:
@@ -239,28 +225,6 @@ def _get_or_create_provider(db: Session, current_user: CurrentUser) -> User:
     db.add(provider)
     db.flush()
     return provider
-
-
-def _get_or_create_customer(db: Session, current_user: CurrentUser) -> User:
-    customer = _get_user_by_keycloak_id(db, current_user)
-    if customer is not None:
-        return customer
-
-    if not current_user.email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authenticated customer token must include an email claim.",
-        )
-
-    customer = User(
-        keycloak_user_id=current_user.id,
-        email=current_user.email,
-        display_name=current_user.username or current_user.email,
-        role="customer",
-    )
-    db.add(customer)
-    db.flush()
-    return customer
 
 
 def _get_user_by_keycloak_id(db: Session, current_user: CurrentUser) -> User | None:

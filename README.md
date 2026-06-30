@@ -1,32 +1,70 @@
 # roundtable_marketplace
 
-## Local Backend Stack
+## Marketplace Backend Local Setup
 
-Start the full backend stack from the repository root:
+The backend lives in [`backend`](backend). Run backend setup, migrations, the
+API, and tests from that directory.
 
-```bash
-docker compose -f backend/docker-compose.yml up --build
-```
+Do not reuse a virtual environment from another repository. Create and activate
+`backend/.venv` so imports and dependencies come from this project only.
 
-## Local Backend Tests
-
-Create and use the repository-local virtual environment so backend tests do not
-pick up packages from another project:
-
-```powershell
-uv venv .venv
-uv pip install --python .\.venv\Scripts\python.exe -r .\backend\requirements-dev.txt
-```
-
-Run the tests from the backend directory so the `app` package resolves from this
-repository:
+### 1. Create a backend-specific virtual environment
 
 ```powershell
 Set-Location backend
-..\.venv\Scripts\python.exe -m pytest
+python -m venv .venv
 ```
 
-Local services:
+Activate it:
+
+```powershell
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS/Linux/WSL
+source .venv/bin/activate
+```
+
+If `python` does not resolve inside `backend/.venv`, stop and reactivate the
+correct environment before installing packages or running tests.
+
+### 2. Install backend dependencies
+
+Use the backend requirements files, not dependencies from another repo:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+`requirements-dev.txt` includes the runtime requirements and pytest.
+
+### 3. Configure local environment variables
+
+Copy the backend example file and adjust values only if your local ports or
+credentials differ:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+```bash
+cp .env.example .env
+```
+
+The checked-in example is set up for running `uvicorn` directly from
+`backend/` against local Docker services on `localhost`.
+
+### 4. Start local dependency services
+
+Start PostgreSQL, MinIO, and Keycloak from the backend directory:
+
+```bash
+docker compose up -d postgres minio keycloak
+```
+
+Local service endpoints:
 
 ```text
 API:             http://localhost:8000
@@ -43,28 +81,64 @@ MinIO console login:
 minioadmin / minioadmin
 ```
 
-Uploaded listing images are stored by MinIO under the repository folder:
+Uploaded listing images are stored under:
 
 ```text
 storage/minio
 ```
 
+If you want to run the API inside Docker Compose instead of locally, use:
+
+```bash
+docker compose up --build
+```
+
+### 5. Run database migrations
+
+With the backend virtual environment activated and the local services running:
+
+```bash
+alembic upgrade head
+```
+
+### 6. Run the FastAPI backend locally
+
+From the backend directory:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
 The API creates the `listing-images` bucket on startup if it is missing and
 applies a public read policy so returned image URLs can be opened in a browser.
 
-## Local Keycloak
+### 7. Run tests from the backend project root
 
-To run only Keycloak:
+Run pytest from `backend/` with the backend virtual environment activated:
 
 ```bash
-docker compose -f backend/docker-compose.yml up keycloak
+pytest
 ```
 
-Keycloak will be available at http://localhost:8080. Sign in to the admin
-console with `admin` / `admin`.
+Targeted examples:
+
+```bash
+pytest tests/test_categories.py
+pytest tests/test_listings.py
+pytest tests/test_listing_images.py
+```
+
+The tests are expected to run from the backend project root so the local
+`app` package and `.env` resolve from this repository, not from another repo's
+virtual environment.
+
+## Local Keycloak
+
+Keycloak is available at `http://localhost:8080`. Sign in to the admin console
+with `admin` / `admin`.
 
 Create a realm named `marketplace`, then create an OpenID Connect client named
-`marketplace-api` with these MVP settings:
+`marketplace-api` with these local settings:
 
 ```text
 Client authentication: Off
@@ -77,14 +151,10 @@ Create realm roles named `provider`, `customer`, and `admin`. For local testing,
 create users such as `provider@test.com` and `customer@test.com`, set passwords
 for them, and assign the matching realm role.
 
-These local users are development-only test accounts. Do not use these
-credentials or accounts in production.
-
 Detailed setup steps are documented in
 [Creating Test Users in Keycloak](docs/keycloak-test-users.md).
 
-To get a local provider access token for API testing, make sure the
-`marketplace-api` client allows direct access grants, then run:
+To get a local provider access token for API testing:
 
 ```bash
 curl -X POST "http://localhost:8080/realms/marketplace/protocol/openid-connect/token" \
@@ -98,126 +168,13 @@ curl -X POST "http://localhost:8080/realms/marketplace/protocol/openid-connect/t
 Copy the `access_token` value from the JSON response and send it as a bearer
 token when calling provider-only endpoints.
 
-For Swagger testing, save the token in your shell and print it:
-
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8080/realms/marketplace/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=marketplace-api" \
-  -d "grant_type=password" \
-  -d "username=provider@test.com" \
-  -d "password=Password123!" \
-  | python -c "import sys,json; print(json.load(sys.stdin).get('access_token', ''))")
-
-echo "$TOKEN"
-```
-
-Open http://localhost:8000/docs, click **Authorize**, and paste only the token
-value without the `Bearer` prefix.
-
-To test listing image upload in Swagger, use a listing owned by that provider.
-For example, if the listing id is:
-
-```text
-c0589995-4e21-494a-80a8-c354212852b8
-```
-
-Create a tiny test image in WSL if you do not have one handy:
-
-```bash
-printf 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=' | base64 -d > /tmp/test.png
-```
-
-In Swagger, open `POST /listings/{listing_id}/images` and set:
-
-```text
-listing_id = c0589995-4e21-494a-80a8-c354212852b8
-file = /tmp/test.png
-display_order = 0
-is_cover = false
-```
-
-If you need to create a listing first, call `POST /listings` with the same
-provider token. This example uses the seeded `Hair` category:
-
-```bash
-curl -i -X POST "http://localhost:8000/listings" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "category_id": "3c67a6cc-29c5-4d46-b6f9-262056d9cb70",
-    "title": "Test listing",
-    "slug": "test-listing",
-    "description": "Test",
-    "price": 100,
-    "currency": "ZAR",
-    "location": "Cape Town",
-    "status": "draft"
-  }'
-```
-
-Then upload an image with curl:
-
-```bash
-curl -i -X POST "http://localhost:8000/listings/<listing_id>/images" \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@/tmp/test.png" \
-  -F "display_order=0" \
-  -F "is_cover=false"
-```
-
-The response includes an `image_url` like:
-
-```text
-http://localhost:9000/listing-images/listings/<listing_id>/<image-uuid>.png
-```
-
-The backend validates Keycloak JWTs with:
-
-```env
-KEYCLOAK_ISSUER=http://localhost:8080/realms/marketplace
-KEYCLOAK_AUTHORIZED_PARTY=marketplace-api
-KEYCLOAK_JWKS_URL=http://localhost:8080/realms/marketplace/protocol/openid-connect/certs
-```
-
-When the API runs inside Docker Compose, use the Keycloak service name for
-the JWKS URL, but keep the issuer matching the token's `iss` claim:
-
-```env
-KEYCLOAK_ISSUER=http://localhost:8080/realms/marketplace
-KEYCLOAK_AUTHORIZED_PARTY=marketplace-api
-KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/marketplace/protocol/openid-connect/certs
-```
-
-Provider-only routes should depend on `require_role("provider")`:
-
-```python
-from fastapi import Depends
-
-from app.core.auth import require_role
-from app.core.security import CurrentUser
-
-
-def create_listing(
-    current_user: CurrentUser = Depends(require_role("provider")),
-):
-    ...
-```
-
 ## Troubleshooting
+
+If pytest fails before collecting tests, confirm you are in `backend/` and that
+the active interpreter comes from `backend/.venv`.
 
 If a provider-only request returns `401`, generate a fresh token and make sure
 Swagger receives only the raw token value, not `Bearer <token>`.
-
-If token generation returns an error, check that:
-
-```text
-Realm: marketplace
-Client: marketplace-api
-Direct access grants: On
-User password is not temporary
-User has the provider realm role
-```
 
 If image upload returns `403`, the authenticated provider does not own that
 listing. Create the listing with the same provider token, then upload the image.

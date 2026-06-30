@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 import uuid
 
@@ -38,6 +39,15 @@ class ListingCreate(BaseModel):
     slug: str | None = None
     description: str | None = None
     price: Decimal
+    rent_amount: Decimal | None = None
+    deposit_amount: Decimal | None = None
+    agent_fee: Decimal | None = None
+    available_date: date | None = None
+    is_furnished: bool | None = None
+    utilities_included: bool | None = None
+    parking_available: bool | None = None
+    max_occupants: int | None = None
+    area: str | None = None
     currency: str = "ZAR"
     location: str | None = None
     status: str = "draft"
@@ -49,6 +59,15 @@ class ListingUpdate(BaseModel):
     slug: str | None = None
     description: str | None = None
     price: Decimal | None = None
+    rent_amount: Decimal | None = None
+    deposit_amount: Decimal | None = None
+    agent_fee: Decimal | None = None
+    available_date: date | None = None
+    is_furnished: bool | None = None
+    utilities_included: bool | None = None
+    parking_available: bool | None = None
+    max_occupants: int | None = None
+    area: str | None = None
     currency: str | None = None
     location: str | None = None
     status: str | None = None
@@ -62,6 +81,15 @@ class ListingRead(BaseModel):
     slug: str
     description: str | None = None
     price: Decimal
+    rent_amount: Decimal | None = None
+    deposit_amount: Decimal | None = None
+    agent_fee: Decimal | None = None
+    available_date: date | None = None
+    is_furnished: bool | None = None
+    utilities_included: bool | None = None
+    parking_available: bool | None = None
+    max_occupants: int | None = None
+    area: str | None = None
     currency: str
     location: str | None = None
     status: str

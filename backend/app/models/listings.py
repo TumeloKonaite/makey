@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +39,15 @@ class Listing(Base):
     slug: Mapped[str] = mapped_column(String(220), nullable=False, unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    rent_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    deposit_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    agent_fee: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    available_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    is_furnished: Mapped[bool | None] = mapped_column(nullable=True)
+    utilities_included: Mapped[bool | None] = mapped_column(nullable=True)
+    parking_available: Mapped[bool | None] = mapped_column(nullable=True)
+    max_occupants: Mapped[int | None] = mapped_column(nullable=True)
+    area: Mapped[str | None] = mapped_column(String(160), nullable=True)
     currency: Mapped[str] = mapped_column(
         String(3),
         nullable=False,

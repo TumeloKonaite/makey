@@ -1,5 +1,5 @@
 def main():
-    print("Hello from beautyverse-marketplace!")
+    print("Hello from marketplace-rooms!")
 
 
 if __name__ == "__main__":

@@ -12,8 +12,8 @@ from app.repository.database.tables.base_model import Base
 from app.repository.database.tables.session_manager import get_db
 
 
-hair_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
-nails_id = uuid.UUID("ff0cd8f5-e0aa-4874-8ad6-4566ed6e851e")
+single_room_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
+shared_room_id = uuid.UUID("ff0cd8f5-e0aa-4874-8ad6-4566ed6e851e")
 inactive_id = uuid.UUID("b4d3a492-5b4f-4082-98fd-65d02af692e8")
 
 
@@ -21,22 +21,22 @@ def seed_categories(db: Session) -> None:
     db.add_all(
         [
             Category(
-                id=hair_id,
-                name="Hair",
-                slug="hair",
-                description="Hair styling, braids, cuts, wigs, and treatments",
+                id=single_room_id,
+                name="Single room",
+                slug="single-room",
+                description="Private single-occupancy rooms for one tenant",
             ),
             Category(
-                id=nails_id,
-                name="Nails",
-                slug="nails",
-                description="Manicures, pedicures, nail art, and extensions",
+                id=shared_room_id,
+                name="Shared room",
+                slug="shared-room",
+                description="Shared rooms with a lower monthly rent option",
             ),
             Category(
                 id=inactive_id,
-                name="Makeup",
-                slug="makeup",
-                description="Makeup artists and cosmetic beauty services",
+                name="Studio",
+                slug="studio",
+                description="Open-plan studio spaces with compact living areas",
                 is_active=False,
             ),
         ],
@@ -81,16 +81,16 @@ def test_list_categories_returns_active_categories() -> None:
     assert response.status_code == 200
     assert response.json() == [
         {
-            "id": str(hair_id),
-            "name": "Hair",
-            "slug": "hair",
-            "description": "Hair styling, braids, cuts, wigs, and treatments",
+            "id": str(shared_room_id),
+            "name": "Shared room",
+            "slug": "shared-room",
+            "description": "Shared rooms with a lower monthly rent option",
         },
         {
-            "id": str(nails_id),
-            "name": "Nails",
-            "slug": "nails",
-            "description": "Manicures, pedicures, nail art, and extensions",
+            "id": str(single_room_id),
+            "name": "Single room",
+            "slug": "single-room",
+            "description": "Private single-occupancy rooms for one tenant",
         },
     ]
 
@@ -98,16 +98,16 @@ def test_list_categories_returns_active_categories() -> None:
 def test_get_category_returns_category_by_id() -> None:
     client = build_client()
     try:
-        response = client.get(f"/categories/{hair_id}")
+        response = client.get(f"/categories/{single_room_id}")
     finally:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {
-        "id": str(hair_id),
-        "name": "Hair",
-        "slug": "hair",
-        "description": "Hair styling, braids, cuts, wigs, and treatments",
+        "id": str(single_room_id),
+        "name": "Single room",
+        "slug": "single-room",
+        "description": "Private single-occupancy rooms for one tenant",
     }
 
 

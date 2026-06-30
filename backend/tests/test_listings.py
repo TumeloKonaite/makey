@@ -70,17 +70,17 @@ def seed_data(db: Session) -> None:
     )
     category = Category(
         id=category_id,
-        name="Hair",
-        slug="hair",
-        description="Hair styling",
+        name="Single room",
+        slug="single-room",
+        description="Private single-occupancy room",
     )
     published_listing = Listing(
         id=published_listing_id,
         provider_id=provider_id,
         category_id=category_id,
-        title="Braids",
-        slug="braids",
-        description="Protective styling",
+        title="Sunny single room in Observatory",
+        slug="sunny-single-room-in-observatory",
+        description="Furnished room with Wi-Fi and utilities included",
         price=Decimal("250.00"),
         currency="ZAR",
         location="Cape Town",
@@ -90,9 +90,9 @@ def seed_data(db: Session) -> None:
         id=draft_listing_id,
         provider_id=provider_id,
         category_id=category_id,
-        title="Draft braids",
-        slug="draft-braids",
-        description="Hidden draft",
+        title="Draft single room in Observatory",
+        slug="draft-single-room-in-observatory",
+        description="Hidden draft room listing",
         price=Decimal("275.00"),
         currency="ZAR",
         location="Cape Town",
@@ -162,7 +162,7 @@ def test_non_owner_cannot_update_another_listing(client: TestClient) -> None:
 
     detail_response = client.get(f"/listings/{published_listing_id}")
     assert detail_response.status_code == 200
-    assert detail_response.json()["title"] == "Braids"
+    assert detail_response.json()["title"] == "Sunny single room in Observatory"
 
 
 def test_listing_owner_can_delete_their_listing(client: TestClient) -> None:

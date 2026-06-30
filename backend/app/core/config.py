@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = Field(default="beauty-marketplace-api", alias="APP_NAME")
+    app_name: str = Field(default="rooms-marketplace-api", alias="APP_NAME")
     app_env: str = Field(default="local", alias="APP_ENV")
     api_port: int = Field(default=8000, alias="API_PORT")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")

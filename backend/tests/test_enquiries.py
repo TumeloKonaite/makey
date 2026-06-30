@@ -79,17 +79,17 @@ def seed_data(db: Session) -> None:
     )
     category = Category(
         id=category_id,
-        name="Hair",
-        slug="hair",
-        description="Hair styling",
+        name="Single room",
+        slug="single-room",
+        description="Private single-occupancy room",
     )
     listing = Listing(
         id=listing_id,
         provider_id=provider_id,
         category_id=category_id,
-        title="Braids",
-        slug="braids",
-        description="Protective styling",
+        title="Sunny single room in Observatory",
+        slug="sunny-single-room-in-observatory",
+        description="Furnished room with Wi-Fi and utilities included",
         price=Decimal("250.00"),
         currency="ZAR",
         location="Cape Town",
@@ -99,9 +99,9 @@ def seed_data(db: Session) -> None:
         id=other_listing_id,
         provider_id=other_provider_id,
         category_id=category_id,
-        title="Nails",
-        slug="nails",
-        description="Gel manicure",
+        title="Shared room near campus",
+        slug="shared-room-near-campus",
+        description="Affordable shared room close to transport links",
         price=Decimal("180.00"),
         currency="ZAR",
         location="Johannesburg",
@@ -111,8 +111,8 @@ def seed_data(db: Session) -> None:
         id=draft_listing_id,
         provider_id=provider_id,
         category_id=category_id,
-        title="Draft braids",
-        slug="draft-braids",
+        title="Draft single room in Observatory",
+        slug="draft-single-room-in-observatory",
         description="Not public yet",
         price=Decimal("260.00"),
         currency="ZAR",
@@ -149,7 +149,7 @@ def enquiry_payload() -> dict[str, str]:
         "name": "Jane Doe",
         "email": "jane@example.com",
         "phone": "+27710000000",
-        "message": "Hi, is this service available this weekend?",
+        "message": "Hi, is this room still available this weekend?",
     }
 
 
@@ -164,7 +164,7 @@ def test_customer_can_submit_enquiry_for_listing(client: TestClient) -> None:
     assert body["name"] == "Jane Doe"
     assert body["email"] == "jane@example.com"
     assert body["phone"] == "+27710000000"
-    assert body["message"] == "Hi, is this service available this weekend?"
+    assert body["message"] == "Hi, is this room still available this weekend?"
     assert "id" in body
 
 

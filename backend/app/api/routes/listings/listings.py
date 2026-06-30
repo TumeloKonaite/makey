@@ -13,16 +13,14 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.routes.listings.schemas import (
-    EnquiryCreate,
-    EnquiryRead,
     ListingCreate,
     ListingImageRead,
     ListingRead,
     ListingUpdate,
 )
-from app.core.auth import get_current_user, get_optional_current_user, require_role
+from app.core.auth import require_role
 from app.core.security import CurrentUser
-from app.models import Enquiry, Listing, ListingImage
+from app.models import Listing, ListingImage
 from app.repository.database.tables.session_manager import get_db
 from app.repository.storage import InvalidImageFile, MinioImageStorage
 from app.services.listings import service
@@ -40,32 +38,6 @@ def get_listing(listing_id: uuid.UUID, db: Session = Depends(get_db)) -> Listing
     return service.get_listing(db, listing_id)
 
 
-@router.get("/me/enquiries", response_model=list[EnquiryRead], tags=["enquiries"])
-def list_my_enquiries(
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> list[EnquiryRead]:
-    return [
-        _enquiry_response(enquiry)
-        for enquiry in service.list_my_enquiries(db, current_user)
-    ]
-
-
-@router.get(
-    "/me/listing-enquiries",
-    response_model=list[EnquiryRead],
-    tags=["enquiries"],
-)
-def list_my_listing_enquiries(
-    db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> list[EnquiryRead]:
-    return [
-        _enquiry_response(enquiry)
-        for enquiry in service.list_my_listing_enquiries(db, current_user)
-    ]
-
-
 @router.post(
     "/listings",
     response_model=ListingRead,
@@ -78,22 +50,6 @@ def create_listing(
     current_user: CurrentUser = Depends(require_role("provider")),
 ) -> Listing:
     return service.create_listing(db, payload, current_user)
-
-
-@router.post(
-    "/listings/{listing_id}/enquiries",
-    response_model=EnquiryRead,
-    status_code=status.HTTP_201_CREATED,
-    tags=["enquiries"],
-)
-def create_enquiry(
-    listing_id: uuid.UUID,
-    payload: EnquiryCreate,
-    db: Session = Depends(get_db),
-    current_user: CurrentUser | None = Depends(get_optional_current_user),
-) -> EnquiryRead:
-    enquiry = service.create_enquiry(db, listing_id, payload, current_user)
-    return _enquiry_response(enquiry)
 
 
 @router.patch("/listings/{listing_id}", response_model=ListingRead, tags=["listings"])
@@ -155,15 +111,4 @@ def add_listing_image(
         display_order=display_order,
         is_cover=is_cover,
         current_user=current_user,
-    )
-
-
-def _enquiry_response(enquiry: Enquiry) -> EnquiryRead:
-    return EnquiryRead(
-        id=enquiry.id,
-        listing_id=enquiry.listing_id,
-        name=enquiry.customer_name,
-        email=enquiry.customer_email,
-        phone=enquiry.customer_phone,
-        message=enquiry.message,
     )

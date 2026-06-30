@@ -21,6 +21,7 @@ other_provider_id = uuid.UUID("bbbbbbbb-2222-4222-8222-222222222222")
 customer_id = uuid.UUID("dddddddd-4444-4444-8444-444444444444")
 listing_id = uuid.UUID("cccccccc-3333-4333-8333-333333333333")
 other_listing_id = uuid.UUID("eeeeeeee-5555-4555-8555-555555555555")
+draft_listing_id = uuid.UUID("ffffffff-6666-4666-8666-666666666666")
 
 
 @pytest.fixture()
@@ -106,7 +107,29 @@ def seed_data(db: Session) -> None:
         location="Johannesburg",
         status="published",
     )
-    db.add_all([provider, other_provider, customer, category, listing, other_listing])
+    draft_listing = Listing(
+        id=draft_listing_id,
+        provider_id=provider_id,
+        category_id=category_id,
+        title="Draft braids",
+        slug="draft-braids",
+        description="Not public yet",
+        price=Decimal("260.00"),
+        currency="ZAR",
+        location="Cape Town",
+        status="draft",
+    )
+    db.add_all(
+        [
+            provider,
+            other_provider,
+            customer,
+            category,
+            listing,
+            other_listing,
+            draft_listing,
+        ]
+    )
     db.commit()
 
 
@@ -156,6 +179,15 @@ def test_submit_enquiry_returns_404_for_invalid_listing(client: TestClient) -> N
     missing_id = uuid.UUID("99999999-9999-4999-8999-999999999999")
 
     response = client.post(f"/listings/{missing_id}/enquiries", json=enquiry_payload())
+
+    assert response.status_code == 404
+
+
+def test_submit_enquiry_returns_404_for_draft_listing(client: TestClient) -> None:
+    response = client.post(
+        f"/listings/{draft_listing_id}/enquiries",
+        json=enquiry_payload(),
+    )
 
     assert response.status_code == 404
 

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="beauty-marketplace-api", alias="APP_NAME")
     app_env: str = Field(default="local", alias="APP_ENV")
     api_port: int = Field(default=8000, alias="API_PORT")
+    frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
 
     database_url: str = Field(
         default="postgresql+psycopg://marketplace_user:marketplace_password@postgres:5432/marketplace_db",

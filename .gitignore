@@ -7,8 +7,14 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
+backend/.venv/
 
 # Local environment files
 .env
 backend/.env
+
+# Test and coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/

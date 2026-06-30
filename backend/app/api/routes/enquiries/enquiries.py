@@ -18,6 +18,7 @@ router = APIRouter()
     response_model=EnquiryRead,
     status_code=status.HTTP_201_CREATED,
     tags=["enquiries"],
+    summary="Submit a room enquiry or viewing request",
 )
 def create_enquiry(
     listing_id: uuid.UUID,
@@ -29,7 +30,12 @@ def create_enquiry(
     return _enquiry_response(enquiry)
 
 
-@router.get("/me/enquiries", response_model=list[EnquiryRead], tags=["enquiries"])
+@router.get(
+    "/me/enquiries",
+    response_model=list[EnquiryRead],
+    tags=["enquiries"],
+    summary="List my room enquiries",
+)
 def list_my_enquiries(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
@@ -50,6 +56,7 @@ def list_my_enquiries(
     "/me/owner-enquiries",
     response_model=list[EnquiryRead],
     tags=["enquiries"],
+    summary="List room enquiries for my listings",
 )
 def list_my_owner_enquiries(
     db: Session = Depends(get_db),
@@ -62,6 +69,7 @@ def list_my_owner_enquiries(
 
 
 def _enquiry_response(enquiry: Enquiry) -> EnquiryRead:
+    listing = enquiry.listing
     return EnquiryRead(
         id=enquiry.id,
         listing_id=enquiry.listing_id,
@@ -69,4 +77,22 @@ def _enquiry_response(enquiry: Enquiry) -> EnquiryRead:
         email=enquiry.customer_email,
         phone=enquiry.customer_phone,
         message=enquiry.message,
+        desired_move_in_date=enquiry.desired_move_in_date,
+        occupant_count=enquiry.occupant_count,
+        is_viewing_requested=enquiry.is_viewing_requested,
+        preferred_viewing_date=enquiry.preferred_viewing_date,
+        preferred_viewing_time=enquiry.preferred_viewing_time,
+        viewing_notes=enquiry.viewing_notes,
+        listing=(
+            {
+                "id": listing.id,
+                "title": listing.title,
+                "status": listing.status,
+                "category_id": listing.category_id,
+                "category_name": listing.category.name if listing.category else None,
+            }
+            if listing is not None
+            else None
+        ),
+        created_at=enquiry.created_at,
     )

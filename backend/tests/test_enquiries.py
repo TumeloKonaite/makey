@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Generator
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -150,6 +151,12 @@ def enquiry_payload() -> dict[str, str]:
         "email": "jane@example.com",
         "phone": "+27710000000",
         "message": "Hi, is this room still available this weekend?",
+        "desired_move_in_date": "2026-07-15",
+        "occupant_count": 1,
+        "is_viewing_requested": True,
+        "preferred_viewing_date": "2026-07-02",
+        "preferred_viewing_time": "18:00:00",
+        "viewing_notes": "I am available after work.",
     }
 
 
@@ -165,6 +172,16 @@ def test_renter_can_submit_enquiry_for_listing(client: TestClient) -> None:
     assert body["email"] == "jane@example.com"
     assert body["phone"] == "+27710000000"
     assert body["message"] == "Hi, is this room still available this weekend?"
+    assert body["desired_move_in_date"] == "2026-07-15"
+    assert body["occupant_count"] == 1
+    assert body["is_viewing_requested"] is True
+    assert body["preferred_viewing_date"] == "2026-07-02"
+    assert body["preferred_viewing_time"] == "18:00:00"
+    assert body["viewing_notes"] == "I am available after work."
+    assert body["listing"]["title"] == "Sunny single room in Observatory"
+    assert body["listing"]["status"] == "published"
+    assert body["listing"]["category_name"] == "Single room"
+    assert "created_at" in body
     assert "id" in body
 
 
@@ -173,6 +190,18 @@ def test_anonymous_user_can_submit_enquiry(client: TestClient) -> None:
 
     assert response.status_code == 201
     assert response.json()["email"] == "jane@example.com"
+
+
+def test_phone_only_enquiry_is_allowed(client: TestClient) -> None:
+    payload = enquiry_payload()
+    payload["email"] = ""
+
+    response = client.post(f"/listings/{listing_id}/enquiries", json=payload)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["email"] is None
+    assert body["phone"] == "+27710000000"
 
 
 def test_submit_enquiry_returns_404_for_invalid_listing(client: TestClient) -> None:
@@ -192,6 +221,37 @@ def test_submit_enquiry_returns_404_for_draft_listing(client: TestClient) -> Non
     assert response.status_code == 404
 
 
+def test_submit_enquiry_requires_email_or_phone(client: TestClient) -> None:
+    payload = enquiry_payload()
+    payload["email"] = ""
+    payload["phone"] = ""
+
+    response = client.post(f"/listings/{listing_id}/enquiries", json=payload)
+
+    assert response.status_code == 422
+    assert "Either email or phone is required." in str(response.json()["detail"])
+
+
+def test_submit_enquiry_rejects_invalid_occupant_count(client: TestClient) -> None:
+    payload = enquiry_payload()
+    payload["occupant_count"] = 0
+
+    response = client.post(f"/listings/{listing_id}/enquiries", json=payload)
+
+    assert response.status_code == 422
+    assert "occupant_count" in str(response.json()["detail"])
+
+
+def test_submit_enquiry_rejects_invalid_date_format(client: TestClient) -> None:
+    payload = enquiry_payload()
+    payload["desired_move_in_date"] = "15-07-2026"
+
+    response = client.post(f"/listings/{listing_id}/enquiries", json=payload)
+
+    assert response.status_code == 422
+    assert "desired_move_in_date" in str(response.json()["detail"])
+
+
 def test_renter_can_view_own_enquiries(client: TestClient) -> None:
     override_user("renter-1", ["renter"])
     client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
@@ -199,7 +259,9 @@ def test_renter_can_view_own_enquiries(client: TestClient) -> None:
     response = client.get("/me/enquiries")
 
     assert response.status_code == 200
-    assert [enquiry["email"] for enquiry in response.json()] == ["jane@example.com"]
+    enquiry = response.json()[0]
+    assert enquiry["email"] == "jane@example.com"
+    assert enquiry["listing"]["title"] == "Sunny single room in Observatory"
 
 
 def test_owner_can_view_enquiries_for_own_listings(client: TestClient) -> None:
@@ -214,6 +276,9 @@ def test_owner_can_view_enquiries_for_own_listings(client: TestClient) -> None:
     enquiries = response.json()
     assert len(enquiries) == 1
     assert enquiries[0]["listing_id"] == str(listing_id)
+    assert enquiries[0]["listing"]["title"] == "Sunny single room in Observatory"
+    assert enquiries[0]["listing"]["status"] == "published"
+    assert enquiries[0]["is_viewing_requested"] is True
 
 
 def test_non_owner_does_not_see_other_listing_enquiries(client: TestClient) -> None:
@@ -252,6 +317,13 @@ def test_enquiry_is_stored_with_renter_and_owner_ids(client: TestClient) -> None
         enquiry = db.query(Enquiry).one()
         assert enquiry.customer_id == customer_id
         assert enquiry.listing_owner_id == provider_id
+        assert enquiry.customer_email == "jane@example.com"
+        assert enquiry.desired_move_in_date == date(2026, 7, 15)
+        assert enquiry.occupant_count == 1
+        assert enquiry.is_viewing_requested is True
+        assert enquiry.preferred_viewing_date == date(2026, 7, 2)
+        assert enquiry.preferred_viewing_time.isoformat() == "18:00:00"
+        assert enquiry.viewing_notes == "I am available after work."
     finally:
         db.close()
         db_generator.close()

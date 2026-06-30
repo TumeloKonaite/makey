@@ -31,14 +31,16 @@ Realm Roles
 Create the following roles:
 
 ```text
-provider
-customer
+owner
+renter
 admin
 ```
 
-These roles are used by the API to control access to protected endpoints.
+These roles are used by the API to control access to protected endpoints. The
+legacy `provider` and `customer` roles are still accepted temporarily during
+the transition.
 
-## Create a Provider User
+## Create an Owner User
 
 Navigate to:
 
@@ -49,10 +51,10 @@ Users -> Create User
 Enter:
 
 ```text
-Username: provider@test.com
-Email: provider@test.com
+Username: owner@test.com
+Email: owner@test.com
 First Name: Test
-Last Name: Provider
+Last Name: Owner
 Email Verified: ON
 ```
 
@@ -63,7 +65,7 @@ Click **Create**.
 Navigate to:
 
 ```text
-Users -> provider@test.com -> Credentials
+Users -> owner@test.com -> Credentials
 ```
 
 Set:
@@ -75,28 +77,28 @@ Temporary: OFF
 
 Click **Save**.
 
-### Assign Provider Role
+### Assign Owner Role
 
 Navigate to:
 
 ```text
-Users -> provider@test.com -> Role Mapping -> Assign Role
+Users -> owner@test.com -> Role Mapping -> Assign Role
 ```
 
 Switch the filter to **Realm Roles** and assign:
 
 ```text
-provider
+owner
 ```
 
 The assigned roles should include:
 
 ```text
 default-roles-marketplace
-provider
+owner
 ```
 
-## Create a Customer User
+## Create a Renter User
 
 Navigate to:
 
@@ -107,10 +109,10 @@ Users -> Create User
 Enter:
 
 ```text
-Username: customer@test.com
-Email: customer@test.com
+Username: renter@test.com
+Email: renter@test.com
 First Name: Test
-Last Name: Customer
+Last Name: Renter
 Email Verified: ON
 ```
 
@@ -121,7 +123,7 @@ Click **Create**.
 Navigate to:
 
 ```text
-Users -> customer@test.com -> Credentials
+Users -> renter@test.com -> Credentials
 ```
 
 Set:
@@ -133,37 +135,37 @@ Temporary: OFF
 
 Click **Save**.
 
-### Assign Customer Role
+### Assign Renter Role
 
 Navigate to:
 
 ```text
-Users -> customer@test.com -> Role Mapping -> Assign Role
+Users -> renter@test.com -> Role Mapping -> Assign Role
 ```
 
 Switch the filter to **Realm Roles** and assign:
 
 ```text
-customer
+renter
 ```
 
 The assigned roles should include:
 
 ```text
 default-roles-marketplace
-customer
+renter
 ```
 
 ## Verify Authentication
 
-Obtain a provider access token:
+Obtain an owner access token:
 
 ```bash
 curl -X POST "http://localhost:8080/realms/marketplace/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=marketplace-api" \
   -d "grant_type=password" \
-  -d "username=provider@test.com" \
+  -d "username=owner@test.com" \
   -d "password=Password123!"
 ```
 
@@ -180,8 +182,8 @@ A successful response returns:
 
 | Role | Permissions |
 | --- | --- |
-| provider | Create, update, delete listings and upload listing images |
-| customer | Browse listings and submit enquiries |
+| owner | Create, update, delete listings and upload listing images |
+| renter | Browse listings and submit enquiries |
 | admin | Administrative actions |
 
 Protected endpoints:

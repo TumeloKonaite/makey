@@ -1,5 +1,9 @@
 const API_BASE_URL =
-  window.MARKETPLACE_API_URL || window.BEAUTYVERSE_API_URL || "http://localhost:8000";
+  window.MARKETPLACE_ROOMS_API_URL ||
+  window.ROOMS_MARKETPLACE_API_URL ||
+  window.MARKETPLACE_API_URL ||
+  window.BEAUTYVERSE_API_URL ||
+  "http://localhost:8000";
 
 const state = {
   categories: null,
@@ -93,7 +97,7 @@ async function renderHome() {
       <div class="hero-content">
         <p class="eyebrow">Rooms and rentals near you</p>
         <h1>Marketplace Rooms</h1>
-        <p>Browse published room listings, compare room types, and contact landlords or agents without signing in.</p>
+        <p>Browse published room listings, compare room types, and contact owners or agents without signing in.</p>
         <form class="search-panel" data-home-search>
           <input name="search" type="search" placeholder="Search single rooms, studios, shared rooms..." aria-label="Search listings" />
           <button type="submit">Search</button>
@@ -187,6 +191,7 @@ async function renderListingDetailPage(id) {
   const [categories, listing] = await Promise.all([getCategories(), getListing(id)]);
   const category = findCategory(categories, listing.category_id);
   const image = getCoverImage(listing);
+  const ownerName = getListingOwnerName(listing);
 
   app.innerHTML = `
     <section class="page-title">
@@ -205,9 +210,9 @@ async function renderListingDetailPage(id) {
           <h1>${escapeHtml(listing.title)}</h1>
           <div class="price">${formatPrice(listing.price, listing.currency)}</div>
           <p class="listing-description">${escapeHtml(listing.description || "No description has been added for this listing yet.")}</p>
-          <div class="provider-panel">
-            <h2>Landlord or agent</h2>
-            <p>${escapeHtml(listing.provider_name || "Contact details will be shared when you enquire.")}</p>
+          <div class="owner-panel">
+            <h2>Listing owner</h2>
+            <p>${escapeHtml(ownerName || "Contact details will be shared after you send an enquiry.")}</p>
             <button type="button">Send enquiry</button>
           </div>
         </article>
@@ -275,7 +280,7 @@ function filterListings(listings, categories, filters) {
       listing.description,
       listing.location,
       category?.name,
-      listing.provider_name,
+      getListingOwnerName(listing),
     ]
       .filter(Boolean)
       .join(" ")
@@ -313,6 +318,7 @@ function renderListingGrid(listings, categories) {
 function renderListingCard(listing, categories) {
   const category = findCategory(categories, listing.category_id);
   const image = getCoverImage(listing);
+  const ownerName = getListingOwnerName(listing);
 
   return `
     <a class="listing-card" href="/listings/${encodeURIComponent(listing.id)}" data-link>
@@ -327,11 +333,15 @@ function renderListingCard(listing, categories) {
         <div class="price">${formatPrice(listing.price, listing.currency)}</div>
         <div class="listing-meta">
           ${escapeHtml(listing.location || "Location TBA")}
-          ${listing.provider_name ? ` &middot; ${escapeHtml(listing.provider_name)}` : ""}
+          ${ownerName ? ` &middot; ${escapeHtml(ownerName)}` : ""}
         </div>
       </div>
     </a>
   `;
+}
+
+function getListingOwnerName(listing) {
+  return listing.owner_name || listing.provider_name || "";
 }
 
 function getCoverImage(listing) {
@@ -354,7 +364,7 @@ function formatPrice(value, currency = "ZAR") {
 }
 
 function loadingState() {
-  return `<section class="state"><div class="loading-state">Loading marketplace...</div></section>`;
+  return `<section class="state"><div class="loading-state">Loading room listings...</div></section>`;
 }
 
 function emptyState(title, copy) {

@@ -34,7 +34,7 @@ def list_listings(db: Session) -> list[Listing]:
     return list(
         db.scalars(
             select(Listing)
-            .options(selectinload(Listing.images))
+            .options(selectinload(Listing.images), selectinload(Listing.provider))
             .where(Listing.status == PUBLISHED_LISTING_STATUS)
             .order_by(Listing.created_at.desc())
         ).all()
@@ -88,7 +88,7 @@ def update_listing(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot update another provider's listing.",
+        forbidden_detail="You cannot update another owner's listing.",
     )
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -114,7 +114,7 @@ def delete_listing(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot delete another provider's listing.",
+        forbidden_detail="You cannot delete another owner's listing.",
     )
     db.delete(listing)
     db.commit()
@@ -157,7 +157,7 @@ def ensure_listing_image_upload_allowed(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot upload images to another provider's listing.",
+        forbidden_detail="You cannot upload images to another owner's listing.",
     )
 
 
@@ -197,7 +197,7 @@ def _get_listing_or_404(
 ) -> Listing:
     query = (
         select(Listing)
-        .options(selectinload(Listing.images))
+        .options(selectinload(Listing.images), selectinload(Listing.provider))
         .where(Listing.id == listing_id)
     )
     if published_only:
@@ -222,7 +222,7 @@ def _get_or_create_provider(db: Session, current_user: CurrentUser) -> User:
     if not current_user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authenticated provider token must include an email claim.",
+            detail="Authenticated owner token must include an email claim.",
         )
 
     provider = User(
@@ -247,6 +247,6 @@ def _get_provider_or_forbid(db: Session, current_user: CurrentUser) -> User:
     if provider is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Provider profile was not found.",
+            detail="Owner profile was not found.",
         )
     return provider

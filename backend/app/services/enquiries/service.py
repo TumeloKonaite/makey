@@ -69,7 +69,7 @@ def _get_or_create_customer(db: Session, current_user: CurrentUser) -> User:
     if not current_user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authenticated customer token must include an email claim.",
+            detail="Authenticated renter token must include an email claim.",
         )
 
     customer = User(

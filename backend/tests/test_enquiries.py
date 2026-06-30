@@ -58,23 +58,23 @@ def client() -> Generator[TestClient, None, None]:
 def seed_data(db: Session) -> None:
     provider = User(
         id=provider_id,
-        keycloak_user_id="provider-1",
-        email="provider@example.com",
-        display_name="Provider One",
+        keycloak_user_id="owner-1",
+        email="owner@example.com",
+        display_name="Owner One",
         role="provider",
     )
     other_provider = User(
         id=other_provider_id,
-        keycloak_user_id="provider-2",
-        email="other-provider@example.com",
-        display_name="Provider Two",
+        keycloak_user_id="owner-2",
+        email="other-owner@example.com",
+        display_name="Owner Two",
         role="provider",
     )
     customer = User(
         id=customer_id,
-        keycloak_user_id="customer-1",
-        email="customer@example.com",
-        display_name="Customer One",
+        keycloak_user_id="renter-1",
+        email="renter@example.com",
+        display_name="Renter One",
         role="customer",
     )
     category = Category(
@@ -153,8 +153,8 @@ def enquiry_payload() -> dict[str, str]:
     }
 
 
-def test_customer_can_submit_enquiry_for_listing(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+def test_renter_can_submit_enquiry_for_listing(client: TestClient) -> None:
+    override_user("renter-1", ["renter"])
 
     response = client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
 
@@ -192,8 +192,8 @@ def test_submit_enquiry_returns_404_for_draft_listing(client: TestClient) -> Non
     assert response.status_code == 404
 
 
-def test_customer_can_view_own_enquiries(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+def test_renter_can_view_own_enquiries(client: TestClient) -> None:
+    override_user("renter-1", ["renter"])
     client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
 
     response = client.get("/me/enquiries")
@@ -202,13 +202,13 @@ def test_customer_can_view_own_enquiries(client: TestClient) -> None:
     assert [enquiry["email"] for enquiry in response.json()] == ["jane@example.com"]
 
 
-def test_listing_owner_can_view_enquiries_for_own_listings(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+def test_owner_can_view_enquiries_for_own_listings(client: TestClient) -> None:
+    override_user("renter-1", ["renter"])
     client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
     client.post(f"/listings/{other_listing_id}/enquiries", json=enquiry_payload())
 
-    override_user("provider-1", ["provider"])
-    response = client.get("/me/listing-enquiries")
+    override_user("owner-1", ["owner"])
+    response = client.get("/me/owner-enquiries")
 
     assert response.status_code == 200
     enquiries = response.json()
@@ -217,11 +217,11 @@ def test_listing_owner_can_view_enquiries_for_own_listings(client: TestClient) -
 
 
 def test_non_owner_does_not_see_other_listing_enquiries(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+    override_user("renter-1", ["renter"])
     client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
 
-    override_user("provider-2", ["provider"])
-    response = client.get("/me/listing-enquiries")
+    override_user("owner-2", ["owner"])
+    response = client.get("/me/owner-enquiries")
 
     assert response.status_code == 200
     assert response.json() == []
@@ -233,14 +233,14 @@ def test_me_enquiries_requires_authentication(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-def test_me_listing_enquiries_requires_authentication(client: TestClient) -> None:
-    response = client.get("/me/listing-enquiries")
+def test_me_owner_enquiries_requires_authentication(client: TestClient) -> None:
+    response = client.get("/me/owner-enquiries")
 
     assert response.status_code == 401
 
 
-def test_enquiry_is_stored_with_customer_and_owner_ids(client: TestClient) -> None:
-    override_user("customer-1", ["customer"])
+def test_enquiry_is_stored_with_renter_and_owner_ids(client: TestClient) -> None:
+    override_user("renter-1", ["renter"])
     response = client.post(f"/listings/{listing_id}/enquiries", json=enquiry_payload())
 
     assert response.status_code == 201

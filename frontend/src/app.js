@@ -1,4 +1,5 @@
-const API_BASE_URL = window.BEAUTYVERSE_API_URL || "http://localhost:8000";
+const API_BASE_URL =
+  window.MARKETPLACE_API_URL || window.BEAUTYVERSE_API_URL || "http://localhost:8000";
 
 const state = {
   categories: null,
@@ -90,11 +91,11 @@ async function renderHome() {
   app.innerHTML = `
     <section class="hero">
       <div class="hero-content">
-        <p class="eyebrow">Beauty services and products near you</p>
-        <h1>Beautyverse Marketplace</h1>
-        <p>Browse published beauty listings, discover specialists, and find your next appointment without signing in.</p>
+        <p class="eyebrow">Rooms and rentals near you</p>
+        <h1>Marketplace Rooms</h1>
+        <p>Browse published room listings, compare room types, and contact landlords or agents without signing in.</p>
         <form class="search-panel" data-home-search>
-          <input name="search" type="search" placeholder="Search hair, nails, makeup, skincare..." aria-label="Search listings" />
+          <input name="search" type="search" placeholder="Search single rooms, studios, shared rooms..." aria-label="Search listings" />
           <button type="submit">Search</button>
         </form>
       </div>
@@ -103,8 +104,8 @@ async function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Featured Categories</h2>
-          <p>Start with a service area, then narrow the listings by what you need.</p>
+          <h2>Featured Room Types</h2>
+          <p>Start with a room type, then narrow the listings by location and budget.</p>
         </div>
         <a class="button" href="/categories" data-link>View all</a>
       </div>
@@ -115,11 +116,11 @@ async function renderHome() {
       <div class="section-header">
         <div>
           <h2>Latest Listings</h2>
-          <p>Freshly published marketplace listings from beauty providers.</p>
+          <p>Freshly published room listings from landlords and agents.</p>
         </div>
         <a class="button" href="/listings" data-link>Browse listings</a>
       </div>
-      ${latestListings.length ? renderListingGrid(latestListings, categories) : emptyState("No published listings yet.", "Check back soon for new beauty listings.")}
+      ${latestListings.length ? renderListingGrid(latestListings, categories) : emptyState("No published listings yet.", "Check back soon for new room listings.")}
     </section>
   `;
 }
@@ -129,11 +130,11 @@ async function renderCategoriesPage() {
 
   app.innerHTML = `
     <section class="page-title">
-      <h1>Categories</h1>
-      <p>Explore active beauty categories and jump straight into matching published listings.</p>
+      <h1>Room Types</h1>
+      <p>Explore available room types and jump straight into matching published listings.</p>
     </section>
     <section class="content-wrap">
-      ${categories.length ? renderCategoryGrid(categories) : emptyState("No categories yet.", "Active categories will appear here once they are available.")}
+      ${categories.length ? renderCategoryGrid(categories) : emptyState("No room types yet.", "Available room types will appear here once they are available.")}
     </section>
   `;
 }
@@ -148,7 +149,7 @@ async function renderListingsPage() {
   app.innerHTML = `
     <section class="page-title">
       <h1>Listings</h1>
-      <p>Search public listings, filter by category, and open any published listing for more detail.</p>
+      <p>Search public room listings, filter by room type, and open any published listing for more detail.</p>
     </section>
     <form class="toolbar" data-listing-filters>
       <div class="field">
@@ -156,9 +157,9 @@ async function renderListingsPage() {
         <input id="listing-search" name="search" type="search" value="${escapeAttr(search)}" placeholder="Search by title, description, location..." />
       </div>
       <div class="field">
-        <label for="listing-category">Category</label>
+        <label for="listing-category">Room type</label>
         <select id="listing-category" name="category">
-          <option value="">All categories</option>
+          <option value="">All room types</option>
           ${categories
             .map(
               (item) =>
@@ -175,7 +176,7 @@ async function renderListingsPage() {
           ? renderListingGrid(visibleListings, categories)
           : emptyState(
               "No listings match your filters.",
-              "Try a broader search or choose a different category.",
+              "Try a broader search or choose a different room type.",
             )
       }
     </section>
@@ -198,16 +199,16 @@ async function renderListingDetailPage(id) {
         </div>
         <article class="detail-copy">
           <div class="badge-row">
-            <span class="badge">${escapeHtml(category?.name || "Beauty")}</span>
+            <span class="badge">${escapeHtml(category?.name || "Room")}</span>
             ${listing.location ? `<span class="badge">${escapeHtml(listing.location)}</span>` : ""}
           </div>
           <h1>${escapeHtml(listing.title)}</h1>
           <div class="price">${formatPrice(listing.price, listing.currency)}</div>
           <p class="listing-description">${escapeHtml(listing.description || "No description has been added for this listing yet.")}</p>
           <div class="provider-panel">
-            <h2>Provider</h2>
-            <p>${escapeHtml(listing.provider_name || "Provider details will be shared when you enquire.")}</p>
-            <button type="button">Enquire</button>
+            <h2>Landlord or agent</h2>
+            <p>${escapeHtml(listing.provider_name || "Contact details will be shared when you enquire.")}</p>
+            <button type="button">Send enquiry</button>
           </div>
         </article>
       </div>
@@ -292,7 +293,7 @@ function renderCategoryGrid(categories) {
           (category) => `
             <a class="category-card" href="/listings?category=${encodeURIComponent(category.id)}" data-link>
               <h3>${escapeHtml(category.name)}</h3>
-              <p>${escapeHtml(category.description || "Browse published listings in this category.")}</p>
+              <p>${escapeHtml(category.description || "Browse published listings for this room type.")}</p>
             </a>
           `,
         )
@@ -320,13 +321,13 @@ function renderListingCard(listing, categories) {
       </div>
       <div class="listing-body">
         <div class="badge-row">
-          <span class="badge">${escapeHtml(category?.name || "Beauty")}</span>
+          <span class="badge">${escapeHtml(category?.name || "Room")}</span>
         </div>
         <h3>${escapeHtml(listing.title)}</h3>
         <div class="price">${formatPrice(listing.price, listing.currency)}</div>
         <div class="listing-meta">
           ${escapeHtml(listing.location || "Location TBA")}
-          ${listing.provider_name ? ` · ${escapeHtml(listing.provider_name)}` : ""}
+          ${listing.provider_name ? ` &middot; ${escapeHtml(listing.provider_name)}` : ""}
         </div>
       </div>
     </a>

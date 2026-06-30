@@ -73,17 +73,17 @@ def seed_data(db: Session) -> None:
     )
     category = Category(
         id=category_id,
-        name="Hair",
-        slug="hair",
-        description="Hair styling",
+        name="Single room",
+        slug="single-room",
+        description="Private single-occupancy room",
     )
     listing = Listing(
         id=listing_id,
         provider_id=provider_id,
         category_id=category_id,
-        title="Braids",
-        slug="braids",
-        description="Protective styling",
+        title="Sunny single room in Observatory",
+        slug="sunny-single-room-in-observatory",
+        description="Furnished room with Wi-Fi and utilities included",
         price=Decimal("250.00"),
         currency="ZAR",
         location="Cape Town",

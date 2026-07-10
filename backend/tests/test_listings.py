@@ -166,6 +166,50 @@ def test_public_listing_detail_returns_404_for_draft_listing(client: TestClient)
     assert response.json() == {"detail": "Listing was not found."}
 
 
+def test_owner_can_list_their_own_listings_including_drafts(client: TestClient) -> None:
+    override_user("owner-1", ["owner"])
+
+    response = client.get("/me/listings")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {listing["id"] for listing in body} == {
+        str(draft_listing_id),
+        str(published_listing_id),
+    }
+    assert {listing["status"] for listing in body} == {"draft", "published"}
+
+
+def test_owner_can_view_their_own_draft_listing(client: TestClient) -> None:
+    override_user("owner-1", ["owner"])
+
+    response = client.get(f"/me/listings/{draft_listing_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(draft_listing_id)
+    assert body["status"] == "draft"
+    assert body["owner_id"] == str(provider_id)
+
+
+def test_owner_cannot_view_another_owners_listing_in_owner_endpoint(
+    client: TestClient,
+) -> None:
+    override_user("owner-2", ["owner"])
+
+    response = client.get(f"/me/listings/{published_listing_id}")
+
+    assert response.status_code == 403
+
+
+def test_owner_listing_routes_require_authentication(client: TestClient) -> None:
+    list_response = client.get("/me/listings")
+    detail_response = client.get(f"/me/listings/{published_listing_id}")
+
+    assert list_response.status_code == 401
+    assert detail_response.status_code == 401
+
+
 def test_owner_can_update_their_listing(client: TestClient) -> None:
     override_user("owner-1", ["owner"])
 

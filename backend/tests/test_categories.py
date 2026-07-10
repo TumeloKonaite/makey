@@ -95,6 +95,21 @@ def test_list_categories_returns_active_categories() -> None:
     ]
 
 
+def test_categories_allows_private_network_dev_origin_in_local_mode() -> None:
+    client = build_client()
+    try:
+        response = client.get(
+            "/categories",
+            headers={"Origin": "http://172.25.0.1:5173"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://172.25.0.1:5173"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
 def test_get_category_returns_category_by_id() -> None:
     client = build_client()
     try:

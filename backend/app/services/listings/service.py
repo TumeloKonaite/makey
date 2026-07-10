@@ -41,8 +41,36 @@ def list_listings(db: Session) -> list[Listing]:
     )
 
 
+def list_my_listings(db: Session, current_user: CurrentUser) -> list[Listing]:
+    provider = _get_user_by_keycloak_id(db, current_user)
+    if provider is None:
+        return []
+
+    return list(
+        db.scalars(
+            select(Listing)
+            .options(selectinload(Listing.images), selectinload(Listing.provider))
+            .where(Listing.provider_id == provider.id)
+            .order_by(Listing.created_at.desc())
+        ).all()
+    )
+
+
 def get_listing(db: Session, listing_id: uuid.UUID) -> Listing:
     return _get_listing_or_404(db, listing_id, published_only=True)
+
+
+def get_my_listing(
+    db: Session,
+    listing_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> Listing:
+    return ensure_listing_owner_access(
+        db,
+        listing_id,
+        current_user,
+        forbidden_detail="You cannot view another owner's listing.",
+    )
 
 
 def create_listing(

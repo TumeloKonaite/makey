@@ -8,10 +8,9 @@ from app.api.routes.categories import router as categories_router
 from app.api.routes.enquiries import router as enquiries_router
 from app.api.routes.health import router as health_router
 from app.api.routes.listings import router as listings_router
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.repository.storage import ensure_listing_images_bucket
 
-settings = get_settings()
 _LOCAL_DEV_ORIGIN_REGEX = (
     r"^https?://"
     r"(?:(?:localhost|127\.0\.0\.1)"
@@ -22,9 +21,9 @@ _LOCAL_DEV_ORIGIN_REGEX = (
 )
 
 
-def _cors_origins() -> list[str]:
+def _cors_origins(settings: Settings) -> list[str]:
     origins = {settings.frontend_origin.rstrip("/")}
-    if settings.app_env == "local":
+    if settings.is_local:
         origins.update(
             {
                 "http://127.0.0.1:3000",
@@ -36,29 +35,38 @@ def _cors_origins() -> list[str]:
     return sorted(origin for origin in origins if origin)
 
 
-def _cors_origin_regex() -> str | None:
-    if settings.app_env != "local":
+def _cors_origin_regex(settings: Settings) -> str | None:
+    if not settings.is_local:
         return None
     return _LOCAL_DEV_ORIGIN_REGEX
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    _ = app
-    ensure_listing_images_bucket(settings)
-    yield
+def create_app(settings: Settings | None = None) -> FastAPI:
+    runtime_settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        _ = app
+        if runtime_settings.should_ensure_listing_images_bucket_on_startup:
+            ensure_listing_images_bucket(runtime_settings)
+        yield
+
+    web_app = FastAPI(title=runtime_settings.app_name, lifespan=lifespan)
+    web_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins(runtime_settings),
+        allow_origin_regex=_cors_origin_regex(runtime_settings),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    web_app.include_router(health_router)
+    web_app.include_router(categories_router)
+    web_app.include_router(enquiries_router)
+    web_app.include_router(listings_router)
+    if settings is not None:
+        web_app.dependency_overrides[get_settings] = lambda: runtime_settings
+    return web_app
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins(),
-    allow_origin_regex=_cors_origin_regex(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.include_router(health_router)
-app.include_router(categories_router)
-app.include_router(enquiries_router)
-app.include_router(listings_router)
+app = create_app()

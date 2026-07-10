@@ -5,6 +5,11 @@
 The backend lives in [`backend`](backend). Run backend setup, migrations, the
 API, and tests from that directory.
 
+Production deployment to Modal is documented in
+[`docs/deployment/modal.md`](docs/deployment/modal.md). The Modal deployment
+path is additive; the local Docker Compose and `uvicorn` workflow below stays
+the same.
+
 Do not reuse a virtual environment from another repository. Create and activate
 `backend/.venv` so imports and dependencies come from this project only.
 
@@ -55,6 +60,18 @@ cp .env.example .env
 
 The checked-in example is set up for running `uvicorn` directly from
 `backend/` against local Docker services on `localhost`.
+
+If you want to run `uvicorn` locally while pointing at remote services such as
+Supabase instead of local Docker containers, use the dedicated server-test
+template and copy it over `backend/.env` for that session:
+
+```powershell
+Copy-Item .env.server-test.example .env
+```
+
+That server-test template uses `APP_ENV=test` so the API keeps local-friendly
+origin handling but does not try to auto-create the local MinIO bucket on
+startup.
 
 ### 4. Start local dependency services
 
@@ -169,6 +186,23 @@ VITE_API_BASE_URL=http://localhost:8000
 VITE_KEYCLOAK_ISSUER=http://localhost:8080/realms/marketplace
 VITE_KEYCLOAK_CLIENT_ID=marketplace-api
 ```
+
+If you want to test the frontend against the deployed Modal backend instead of
+your local API, use the dedicated server-test template:
+
+```powershell
+Copy-Item .env.server-test.example .env
+```
+
+That template currently points at:
+
+```text
+https://tumelokonaitedev--rooms-marketplace-api-fastapi-app.modal.run
+```
+
+Public listing/category routes should work immediately. Update the
+`VITE_KEYCLOAK_*` values in that file before testing login or owner-only flows
+against production auth.
 
 ### 3. Start the backend dependencies and API
 

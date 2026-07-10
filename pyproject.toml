@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.14.0",
     "fastapi>=0.137.1",
     "httpx>=0.28.1",
+    "modal",
     "minio>=7.2.12",
     "psycopg[binary]>=3.2.3",
     "pydantic-settings>=2.7.1",

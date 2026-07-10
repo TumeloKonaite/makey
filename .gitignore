@@ -12,6 +12,7 @@ backend/.venv/
 
 # Local environment files
 .env
+.env.modal
 backend/.env
 
 # Test and coverage artifacts

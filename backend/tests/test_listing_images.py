@@ -17,7 +17,12 @@ from app.models import Category, Listing, ListingImage, User
 from app.repository.database.tables.base_model import Base
 from app.repository.database.tables.session_manager import get_db
 from app.repository.storage import InvalidImageFile
-from app.repository.storage.minio_storage import MinioImageStorage, StoredImage
+from app.repository.storage.minio_storage import (
+    MinioImageStorage,
+    StoredImage,
+    _parse_minio_endpoint,
+    _with_path_prefix,
+)
 
 category_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
 provider_id = uuid.UUID("aaaaaaaa-1111-4111-8111-111111111111")
@@ -259,3 +264,38 @@ def test_storage_rejects_invalid_file_type() -> None:
 
     with pytest.raises(InvalidImageFile, match="Only JPEG, PNG, and WebP"):
         storage._validate_image(type("File", (), {"content_type": "image/gif"})())
+
+
+def test_supabase_s3_endpoint_path_is_preserved() -> None:
+    endpoint, secure, path_prefix = _parse_minio_endpoint(
+        "https://project-ref.storage.supabase.co/storage/v1/s3"
+    )
+
+    assert endpoint == "project-ref.storage.supabase.co"
+    assert secure is True
+    assert path_prefix == "/storage/v1/s3"
+
+
+def test_public_url_supports_supabase_public_bucket_base_url() -> None:
+    storage = MinioImageStorage(
+        Settings(
+            MINIO_ENDPOINT="https://project-ref.storage.supabase.co/storage/v1/s3",
+            MINIO_PUBLIC_URL="https://project-ref.supabase.co/storage/v1/object/public",
+            MINIO_ACCESS_KEY="access-key",
+            MINIO_SECRET_KEY="secret-key",
+            MINIO_BUCKET_LISTING_IMAGES="rooms_marketplace",
+            MAX_IMAGE_UPLOAD_MB=5,
+        )
+    )
+
+    assert storage.build_public_url("listings/abc/image.png") == (
+        "https://project-ref.supabase.co/storage/v1/object/public/"
+        "rooms_marketplace/listings/abc/image.png"
+    )
+
+
+def test_storage_path_prefix_joining_handles_root_path() -> None:
+    assert _with_path_prefix("/", "/storage/v1/s3") == "/storage/v1/s3"
+    assert _with_path_prefix("/rooms_marketplace", "/storage/v1/s3") == (
+        "/storage/v1/s3/rooms_marketplace"
+    )

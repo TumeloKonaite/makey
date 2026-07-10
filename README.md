@@ -58,7 +58,9 @@ The checked-in example is set up for running `uvicorn` directly from
 
 ### 4. Start local dependency services
 
-Start PostgreSQL, MinIO, and Keycloak from the backend directory:
+Start PostgreSQL, MinIO, and Keycloak from the backend directory, or run the
+same command from the repository root now that a root-level compose file is
+available:
 
 ```bash
 docker compose up -d postgres minio keycloak
@@ -131,6 +133,94 @@ pytest tests/test_listing_images.py
 The tests are expected to run from the backend project root so the local
 `app` package and `.env` resolve from this repository, not from another repo's
 virtual environment.
+
+## RoomWise Marketplace Frontend
+
+The new frontend lives in [`RoomWise Marketplace`](<RoomWise Marketplace>).
+It is already wired to the local backend through `VITE_API_BASE_URL`, which
+defaults to `http://localhost:8000`.
+
+### 1. Install frontend dependencies
+
+From the repository root:
+
+```powershell
+Set-Location "RoomWise Marketplace"
+npm install
+```
+
+If you prefer Bun and already have it installed:
+
+```powershell
+Set-Location "RoomWise Marketplace"
+bun install
+```
+
+### 2. Create the frontend env file
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The default values point at the local FastAPI API and local Keycloak realm:
+
+```text
+VITE_API_BASE_URL=http://localhost:8000
+VITE_KEYCLOAK_ISSUER=http://localhost:8080/realms/marketplace
+VITE_KEYCLOAK_CLIENT_ID=marketplace-api
+```
+
+### 3. Start the backend dependencies and API
+
+In one terminal:
+
+```powershell
+Set-Location backend
+.venv\Scripts\Activate.ps1
+docker compose up -d postgres minio keycloak
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+The local API now accepts common frontend dev origins including
+`http://localhost:3000` and `http://localhost:5173`.
+
+### 4. Start the RoomWise frontend
+
+In a second terminal:
+
+```powershell
+Set-Location "RoomWise Marketplace"
+npm run dev
+```
+
+Open the dev URL printed by Vite/TanStack Start in your browser.
+
+### 5. Local test and smoke-test commands
+
+Backend:
+
+```powershell
+Set-Location backend
+.venv\Scripts\Activate.ps1
+pytest
+```
+
+Frontend quality checks:
+
+```powershell
+Set-Location "RoomWise Marketplace"
+npm run lint
+npm run build
+```
+
+Quick API smoke tests:
+
+```powershell
+Invoke-WebRequest http://localhost:8000/docs
+Invoke-WebRequest http://localhost:8000/categories
+Invoke-WebRequest http://localhost:8000/listings
+```
 
 ## Local Keycloak
 

@@ -33,9 +33,36 @@ def list_listings(db: Session = Depends(get_db)) -> list[Listing]:
     return service.list_listings(db)
 
 
+@router.get(
+    "/me/listings",
+    response_model=list[ListingRead],
+    tags=["listings"],
+    summary="List my room listings",
+)
+def list_my_listings(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("owner")),
+) -> list[Listing]:
+    return service.list_my_listings(db, current_user)
+
+
 @router.get("/listings/{listing_id}", response_model=ListingRead, tags=["listings"])
 def get_listing(listing_id: uuid.UUID, db: Session = Depends(get_db)) -> Listing:
     return service.get_listing(db, listing_id)
+
+
+@router.get(
+    "/me/listings/{listing_id}",
+    response_model=ListingRead,
+    tags=["listings"],
+    summary="Get one of my room listings",
+)
+def get_my_listing(
+    listing_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("owner")),
+) -> Listing:
+    return service.get_my_listing(db, listing_id, current_user)
 
 
 @router.post(

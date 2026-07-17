@@ -36,9 +36,14 @@ def _cors_origins(settings: Settings) -> list[str]:
 
 
 def _cors_origin_regex(settings: Settings) -> str | None:
-    if not settings.is_local:
+    patterns: list[str] = []
+    if settings.is_local:
+        patterns.append(_LOCAL_DEV_ORIGIN_REGEX)
+    if settings.frontend_preview_origin_regex:
+        patterns.append(settings.frontend_preview_origin_regex.strip())
+    if not patterns:
         return None
-    return _LOCAL_DEV_ORIGIN_REGEX
+    return "|".join(f"(?:{pattern})" for pattern in patterns)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

@@ -153,9 +153,14 @@ virtual environment.
 
 ## RoomWise Marketplace Frontend
 
-The new frontend lives in [`RoomWise Marketplace`](<RoomWise Marketplace>).
-It is already wired to the local backend through `VITE_API_BASE_URL`, which
-defaults to `http://localhost:8000`.
+The only active frontend lives in [`RoomWise Marketplace`](<RoomWise Marketplace>).
+The root-level [`frontend`](frontend) directory is legacy and must not be used
+for Vercel deployments.
+
+This frontend is a TanStack Start SSR application. It keeps its server entry in
+`src/server.ts` and builds through Nitro. Do not convert it to a static SPA, do
+not add a blanket rewrite to `index.html`, and do not configure a `dist`
+output directory for Vercel.
 
 ### 1. Install frontend dependencies
 
@@ -166,12 +171,8 @@ Set-Location "RoomWise Marketplace"
 npm install
 ```
 
-If you prefer Bun and already have it installed:
-
-```powershell
-Set-Location "RoomWise Marketplace"
-bun install
-```
+Use npm for deployment work. The active app includes `package-lock.json` and
+declares `packageManager: npm@11.8.0`.
 
 ### 2. Create the frontend env file
 
@@ -184,6 +185,7 @@ The default values point at the local FastAPI API and local Keycloak realm:
 ```text
 VITE_API_BASE_URL=http://localhost:8000
 VITE_KEYCLOAK_ISSUER=http://localhost:8080/realms/marketplace
+VITE_KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/marketplace/protocol/openid-connect/token
 VITE_KEYCLOAK_CLIENT_ID=marketplace-api
 ```
 
@@ -245,6 +247,7 @@ Frontend quality checks:
 ```powershell
 Set-Location "RoomWise Marketplace"
 npm run lint
+npm run typecheck
 npm run build
 ```
 
@@ -255,6 +258,181 @@ Invoke-WebRequest http://localhost:8000/docs
 Invoke-WebRequest http://localhost:8000/categories
 Invoke-WebRequest http://localhost:8000/listings
 ```
+
+## Vercel Deployment
+
+Deploy the active frontend from:
+
+```text
+RoomWise Marketplace
+```
+
+Vercel project settings:
+
+```text
+Root Directory: RoomWise Marketplace
+Install Command: npm install
+Build Command: npm run build
+Node.js: ^20.19.0 || >=22.12.0
+Framework Preset: Auto / Other (Nitro generates the Vercel output)
+Output Directory: leave empty
+```
+
+The active frontend root that Vercel should read is:
+
+```text
+RoomWise Marketplace/package.json
+RoomWise Marketplace/vite.config.ts
+RoomWise Marketplace/src/
+```
+
+### SSR output and local reproduction
+
+The app stays server-rendered on Vercel. Its `vite.config.ts` keeps the
+existing TanStack Start server entry and switches Nitro to the `vercel` preset
+when `VERCEL` or `NITRO_PRESET=vercel` is present.
+
+Verified local Vercel-targeted builds currently resolve to Nitro's `vercel`
+preset with the `web` entry format and emit:
+
+```text
+.vercel/output/static
+.vercel/output/functions/__server.func
+```
+
+Generic local builds still emit Nitro's standard SSR artifacts:
+
+```text
+.output/public
+.output/server
+```
+
+To reproduce the Vercel-targeted build locally:
+
+```powershell
+Set-Location "RoomWise Marketplace"
+$env:NITRO_PRESET="vercel"
+cmd /c npm.cmd run build
+Remove-Item Env:NITRO_PRESET
+```
+
+```bash
+cd "RoomWise Marketplace"
+NITRO_PRESET=vercel npm run build
+```
+
+When the Vercel preset is active, Nitro generates Vercel's build output itself.
+Do not manually copy `.output` into another folder and do not configure a
+static export.
+
+### Vercel environment variables
+
+Add these variables in Vercel for Production, Preview, and Development as
+needed:
+
+```text
+VITE_API_BASE_URL=
+VITE_KEYCLOAK_ISSUER=
+VITE_KEYCLOAK_TOKEN_URL=
+VITE_KEYCLOAK_CLIENT_ID=
+```
+
+Expected usage:
+
+```text
+VITE_API_BASE_URL         -> frontend API requests
+VITE_KEYCLOAK_ISSUER      -> Keycloak issuer / authorization realm
+VITE_KEYCLOAK_TOKEN_URL   -> Keycloak token endpoint
+VITE_KEYCLOAK_CLIENT_ID   -> public frontend Keycloak client id
+```
+
+The frontend now fails fast for non-development builds if any of those values
+are missing or if the API/Keycloak URLs still point at `localhost`.
+
+### Production backend and CORS
+
+Set the production backend to the canonical production frontend origin:
+
+```text
+FRONTEND_ORIGIN=https://<production-project-domain>
+```
+
+Optional preview support is now controlled separately:
+
+```text
+FRONTEND_PREVIEW_ORIGIN_REGEX=^https://roomwise-marketplace-git-[a-z0-9-]+-roomwise-team\.vercel\.app$
+```
+
+Guidance for the preview regex:
+
+```text
+- Match only this Vercel project/team namespace
+- Keep the exact FRONTEND_ORIGIN allow-list for production
+- Leave FRONTEND_PREVIEW_ORIGIN_REGEX unset to disable preview CORS entirely
+```
+
+With that regex unset, preview deployments are rejected by backend CORS. With
+it set, matching RoomWise preview domains are allowed while unrelated
+`vercel.app` projects remain blocked.
+
+### Production URLs
+
+Set these canonical URLs during rollout:
+
+```text
+Production frontend URL: https://<production-project-domain>
+Production backend URL:  https://<production-api-domain>
+```
+
+The checked-in server-test example currently uses this shared remote backend
+for smoke testing:
+
+```text
+https://tumelokonaitedev--rooms-marketplace-api-fastapi-app.modal.run
+```
+
+### Keycloak production configuration
+
+Update the RoomWise frontend client in Keycloak with the production frontend
+origin. Use the narrowest settings that fit the current auth flow:
+
+```text
+Valid redirect URIs:
+  https://<production-project-domain>/*
+
+Web origins:
+  https://<production-project-domain>
+
+Valid post-logout redirect URIs:
+  https://<production-project-domain>/*
+```
+
+Current frontend routes that must keep working include:
+
+```text
+/
+/listings
+/listings/*
+/dashboard
+/dashboard/listings
+/dashboard/enquiries
+```
+
+Do not add legacy `/owner` routes to the Keycloak client.
+
+### Preview deployment policy
+
+Recommended policy:
+
+```text
+- Enable backend preview CORS only with FRONTEND_PREVIEW_ORIGIN_REGEX
+- Keep production auth on the exact canonical frontend origin
+- Treat authenticated preview deployments as opt-in
+```
+
+Preview authentication is only supported after you add matching project-scoped
+preview redirect and web-origin rules in Keycloak. If you do not add those
+rules, use preview deployments for public marketplace testing only.
 
 ## Local Keycloak
 

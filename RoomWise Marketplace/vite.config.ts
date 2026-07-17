@@ -6,7 +6,10 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+const nitroPreset = process.env.NITRO_PRESET?.trim() || (process.env.VERCEL ? "vercel" : "");
+
 export default defineConfig({
+  nitro: nitroPreset ? { preset: nitroPreset } : true,
   vite: {
     server: {
       port: 5173,

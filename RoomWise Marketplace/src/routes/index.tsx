@@ -4,6 +4,7 @@ import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { ListingCard } from "@/components/ListingCard";
 import { Button } from "@/components/ui/button";
 import { getCategories, getListings } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/env";
 import type { Listing } from "@/types";
 
 const CITIES = ["Cape Town", "Johannesburg", "Durban", "Pretoria"] as const;
@@ -97,11 +98,7 @@ function Home() {
           <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-6 text-sm">
             <p className="text-destructive">Couldn't load listings from the API.</p>
             <p className="text-muted-foreground mt-1">
-              Check that{" "}
-              <code className="text-xs">
-                {import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}
-              </code>{" "}
-              is reachable.
+              Check that <code className="text-xs">{API_BASE_URL}</code> is reachable.
             </p>
           </div>
         ) : featured.length === 0 ? (

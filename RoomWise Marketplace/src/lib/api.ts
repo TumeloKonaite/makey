@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./env";
 import { getAccessToken, logout } from "./auth";
 import type {
   ApiErrorPayload,
@@ -9,8 +10,6 @@ import type {
   ListingImage,
   ListingInput,
 } from "@/types";
-
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export class ApiError extends Error {
   status: number;

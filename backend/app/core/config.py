@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -21,6 +22,10 @@ class Settings(BaseSettings):
     app_env: str = Field(default="local", alias="APP_ENV")
     api_port: int = Field(default=8000, alias="API_PORT")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
+    frontend_preview_origin_regex: str | None = Field(
+        default=None,
+        alias="FRONTEND_PREVIEW_ORIGIN_REGEX",
+    )
 
     database_url: str = Field(
         default="postgresql+psycopg://marketplace_user:marketplace_password@postgres:5432/marketplace_db",
@@ -84,6 +89,7 @@ class Settings(BaseSettings):
             return self
 
         self._validate_frontend_origin()
+        self._validate_frontend_preview_origin_regex()
         self._validate_external_service("DATABASE_URL", self.database_url)
         if self.migration_database_url:
             self._validate_external_service(
@@ -115,6 +121,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "FRONTEND_ORIGIN must not point at localhost or Docker-only hosts in non-local environments."
             )
+
+    def _validate_frontend_preview_origin_regex(self) -> None:
+        pattern = (self.frontend_preview_origin_regex or "").strip()
+        if not pattern:
+            return
+
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(
+                "FRONTEND_PREVIEW_ORIGIN_REGEX must be a valid regular expression."
+            ) from exc
 
     def _validate_external_service(self, name: str, value: str) -> None:
         self._validate_required(name, value)

@@ -1,15 +1,10 @@
 import type { KeycloakTokenResponse } from "@/types";
+import { KEYCLOAK_CLIENT_ID, KEYCLOAK_TOKEN_URL } from "./env";
 
 const TOKEN_KEY = "mr.access_token";
 const REFRESH_KEY = "mr.refresh_token";
 const EXPIRY_KEY = "mr.token_expiry";
 const USER_KEY = "mr.username";
-
-export const KEYCLOAK_ISSUER =
-  import.meta.env.VITE_KEYCLOAK_ISSUER || "http://localhost:8080/realms/marketplace";
-export const KEYCLOAK_TOKEN_URL =
-  import.meta.env.VITE_KEYCLOAK_TOKEN_URL || `${KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
-export const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "marketplace-api";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;

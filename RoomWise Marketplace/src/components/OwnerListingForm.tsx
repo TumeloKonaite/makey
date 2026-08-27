@@ -22,7 +22,7 @@ interface Props {
   submitting?: boolean;
 }
 
-export function OwnerListingForm({
+export function AdminListingForm({
   categories,
   initial,
   submitLabel,

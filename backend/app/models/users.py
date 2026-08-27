@@ -12,7 +12,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('provider', 'customer', 'admin')",
+            "role IN ('admin', 'renter')",
             name="ck_users_role",
         ),
     )
@@ -22,7 +22,7 @@ class User(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    keycloak_user_id: Mapped[str] = mapped_column(
+    clerk_user_id: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
         unique=True,
@@ -33,8 +33,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
-        default="customer",
-        server_default="customer",
+        default="renter",
+        server_default="renter",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -1,7 +1,8 @@
 import { createFileRoute, Link, Outlet, useRouter } from "@tanstack/react-router";
+import { useAuth } from "@clerk/tanstack-react-start";
 import { useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
-import { isAuthenticated } from "@/lib/auth";
+import { roleFromClaims } from "@/lib/auth";
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
@@ -10,14 +11,18 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardLayout() {
   const router = useRouter();
+  const { isLoaded, isSignedIn, sessionClaims } = useAuth();
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (!isAuthenticated()) {
+    if (!isLoaded) return;
+    if (!isSignedIn) {
       router.navigate({ to: "/login" });
+    } else if (roleFromClaims(sessionClaims) !== "admin") {
+      router.navigate({ to: "/listings" });
     } else {
       setReady(true);
     }
-  }, [router]);
+  }, [isLoaded, isSignedIn, router, sessionClaims]);
 
   if (!ready) {
     return (
@@ -38,7 +43,6 @@ function DashboardLayout() {
           <DashLink to="/dashboard">Overview</DashLink>
           <DashLink to="/dashboard/listings">My listings</DashLink>
           <DashLink to="/dashboard/listings/new">New listing</DashLink>
-          <DashLink to="/dashboard/enquiries">Enquiries</DashLink>
         </nav>
         <Outlet />
       </main>

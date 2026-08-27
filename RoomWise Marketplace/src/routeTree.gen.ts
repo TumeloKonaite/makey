@@ -9,18 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ListingsRouteImport } from './routes/listings'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
+import { Route as LoginSplatRouteImport } from './routes/login.$'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
-import { Route as DashboardEnquiriesRouteImport } from './routes/dashboard.enquiries'
 import { Route as DashboardListingsIndexRouteImport } from './routes/dashboard.listings.index'
 import { Route as DashboardListingsNewRouteImport } from './routes/dashboard.listings.new'
 import { Route as DashboardListingsIdEditRouteImport } from './routes/dashboard.listings.$id.edit'
 
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -51,15 +58,20 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SignUpRoute,
+} as any)
+const LoginSplatRoute = LoginSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => LoginRoute,
+} as any)
 const ListingsIdRoute = ListingsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ListingsRoute,
-} as any)
-const DashboardEnquiriesRoute = DashboardEnquiriesRouteImport.update({
-  id: '/enquiries',
-  path: '/enquiries',
-  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardListingsIndexRoute = DashboardListingsIndexRouteImport.update({
   id: '/listings/',
@@ -82,9 +94,11 @@ export interface FileRoutesByFullPath {
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/listings': typeof ListingsRouteWithChildren
-  '/login': typeof LoginRoute
-  '/dashboard/enquiries': typeof DashboardEnquiriesRoute
+  '/login': typeof LoginRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/listings/$id': typeof ListingsIdRoute
+  '/login/$': typeof LoginSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/listings/new': typeof DashboardListingsNewRoute
   '/dashboard/listings/': typeof DashboardListingsIndexRoute
@@ -94,9 +108,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
   '/listings': typeof ListingsRouteWithChildren
-  '/login': typeof LoginRoute
-  '/dashboard/enquiries': typeof DashboardEnquiriesRoute
+  '/login': typeof LoginRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/listings/$id': typeof ListingsIdRoute
+  '/login/$': typeof LoginSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/listings/new': typeof DashboardListingsNewRoute
   '/dashboard/listings': typeof DashboardListingsIndexRoute
@@ -108,9 +124,11 @@ export interface FileRoutesById {
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/listings': typeof ListingsRouteWithChildren
-  '/login': typeof LoginRoute
-  '/dashboard/enquiries': typeof DashboardEnquiriesRoute
+  '/login': typeof LoginRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/listings/$id': typeof ListingsIdRoute
+  '/login/$': typeof LoginSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/listings/new': typeof DashboardListingsNewRoute
   '/dashboard/listings/': typeof DashboardListingsIndexRoute
@@ -124,8 +142,10 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/listings'
     | '/login'
-    | '/dashboard/enquiries'
+    | '/sign-up'
     | '/listings/$id'
+    | '/login/$'
+    | '/sign-up/$'
     | '/dashboard/'
     | '/dashboard/listings/new'
     | '/dashboard/listings/'
@@ -136,8 +156,10 @@ export interface FileRouteTypes {
     | '/categories'
     | '/listings'
     | '/login'
-    | '/dashboard/enquiries'
+    | '/sign-up'
     | '/listings/$id'
+    | '/login/$'
+    | '/sign-up/$'
     | '/dashboard'
     | '/dashboard/listings/new'
     | '/dashboard/listings'
@@ -149,8 +171,10 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/listings'
     | '/login'
-    | '/dashboard/enquiries'
+    | '/sign-up'
     | '/listings/$id'
+    | '/login/$'
+    | '/sign-up/$'
     | '/dashboard/'
     | '/dashboard/listings/new'
     | '/dashboard/listings/'
@@ -162,11 +186,19 @@ export interface RootRouteChildren {
   CategoriesRoute: typeof CategoriesRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   ListingsRoute: typeof ListingsRouteWithChildren
-  LoginRoute: typeof LoginRoute
+  LoginRoute: typeof LoginRouteWithChildren
+  SignUpRoute: typeof SignUpRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -209,19 +241,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
+      parentRoute: typeof SignUpRoute
+    }
+    '/login/$': {
+      id: '/login/$'
+      path: '/$'
+      fullPath: '/login/$'
+      preLoaderRoute: typeof LoginSplatRouteImport
+      parentRoute: typeof LoginRoute
+    }
     '/listings/$id': {
       id: '/listings/$id'
       path: '/$id'
       fullPath: '/listings/$id'
       preLoaderRoute: typeof ListingsIdRouteImport
       parentRoute: typeof ListingsRoute
-    }
-    '/dashboard/enquiries': {
-      id: '/dashboard/enquiries'
-      path: '/enquiries'
-      fullPath: '/dashboard/enquiries'
-      preLoaderRoute: typeof DashboardEnquiriesRouteImport
-      parentRoute: typeof DashboardRoute
     }
     '/dashboard/listings/': {
       id: '/dashboard/listings/'
@@ -248,7 +287,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface DashboardRouteChildren {
-  DashboardEnquiriesRoute: typeof DashboardEnquiriesRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardListingsNewRoute: typeof DashboardListingsNewRoute
   DashboardListingsIndexRoute: typeof DashboardListingsIndexRoute
@@ -256,7 +294,6 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardEnquiriesRoute: DashboardEnquiriesRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardListingsNewRoute: DashboardListingsNewRoute,
   DashboardListingsIndexRoute: DashboardListingsIndexRoute,
@@ -279,12 +316,34 @@ const ListingsRouteWithChildren = ListingsRoute._addFileChildren(
   ListingsRouteChildren,
 )
 
+interface LoginRouteChildren {
+  LoginSplatRoute: typeof LoginSplatRoute
+}
+
+const LoginRouteChildren: LoginRouteChildren = {
+  LoginSplatRoute: LoginSplatRoute,
+}
+
+const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
+
+interface SignUpRouteChildren {
+  SignUpSplatRoute: typeof SignUpSplatRoute
+}
+
+const SignUpRouteChildren: SignUpRouteChildren = {
+  SignUpSplatRoute: SignUpSplatRoute,
+}
+
+const SignUpRouteWithChildren =
+  SignUpRoute._addFileChildren(SignUpRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriesRoute: CategoriesRoute,
   DashboardRoute: DashboardRouteWithChildren,
   ListingsRoute: ListingsRouteWithChildren,
-  LoginRoute: LoginRoute,
+  LoginRoute: LoginRouteWithChildren,
+  SignUpRoute: SignUpRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -64,17 +64,17 @@ def client() -> Generator[TestClient, None, None]:
 def seed_data(db: Session) -> None:
     provider = User(
         id=provider_id,
-        keycloak_user_id="owner-1",
+        clerk_user_id="admin-1",
         email="owner@example.com",
         display_name="Owner One",
-        role="provider",
+        role="admin",
     )
     other_provider = User(
         id=other_provider_id,
-        keycloak_user_id="owner-2",
+        clerk_user_id="admin-2",
         email="other-owner@example.com",
         display_name="Owner Two",
-        role="provider",
+        role="admin",
     )
     category = Category(
         id=category_id,
@@ -98,16 +98,18 @@ def seed_data(db: Session) -> None:
     db.commit()
 
 
-def override_user(user_id: str, roles: list[str]) -> None:
+def override_user(user_id: str, role: str) -> None:
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         sub=user_id,
         email=f"{user_id}@example.com",
         username=user_id,
-        roles=roles,
+        role=role,
     )
 
 
 class FakeStorage:
+    removed_objects: list[str] = []
+
     def upload_listing_image(self, listing_id: uuid.UUID, file: object) -> StoredImage:
         _ = file
         return StoredImage(
@@ -116,6 +118,9 @@ class FakeStorage:
             content_type="image/png",
             size_bytes=7,
         )
+
+    def remove_listing_image(self, object_name: str) -> None:
+        self.removed_objects.append(object_name)
 
 
 def upload_png(client: TestClient):
@@ -127,7 +132,7 @@ def upload_png(client: TestClient):
 
 
 def test_successful_owner_upload(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
     monkeypatch.setattr(listing_routes, "MinioImageStorage", FakeStorage)
 
     response = upload_png(client)
@@ -152,7 +157,7 @@ def test_unauthenticated_upload_returns_401(client: TestClient) -> None:
 
 
 def test_non_owner_upload_returns_403(client: TestClient) -> None:
-    override_user("renter-1", ["renter"])
+    override_user("renter-1", "renter")
 
     response = upload_png(client)
 
@@ -160,7 +165,7 @@ def test_non_owner_upload_returns_403(client: TestClient) -> None:
 
 
 def test_owner_cannot_upload_to_another_owners_listing(client: TestClient) -> None:
-    override_user("owner-2", ["owner"])
+    override_user("admin-2", "admin")
 
     response = upload_png(client)
 
@@ -168,7 +173,7 @@ def test_owner_cannot_upload_to_another_owners_listing(client: TestClient) -> No
 
 
 def test_invalid_file_type_rejected(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.post(
         f"/listings/{listing_id}/images",
@@ -182,7 +187,7 @@ def test_invalid_file_type_rejected(client: TestClient) -> None:
 
 
 def test_oversized_file_rejected(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     class SmallLimitStorage(MinioImageStorage):
         def __init__(self) -> None:
@@ -248,6 +253,48 @@ def test_public_listing_response_includes_image_urls(client: TestClient) -> None
     ]
     assert detail_response.status_code == 200
     assert detail_response.json()["images"] == listing["images"]
+
+
+def test_admin_can_remove_listing_image(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_id = uuid.UUID("dddddddd-4444-4444-8444-444444444444")
+    override = app.dependency_overrides[get_db]
+    db_generator = override()
+    db = next(db_generator)
+    try:
+        db.add(
+            ListingImage(
+                id=image_id,
+                listing_id=listing_id,
+                object_name=f"listings/{listing_id}/remove.png",
+                image_url="http://cdn.test/remove.png",
+                content_type="image/png",
+                size_bytes=32,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+        db_generator.close()
+
+    FakeStorage.removed_objects.clear()
+    override_user("admin-1", "admin")
+    monkeypatch.setattr(listing_routes, "MinioImageStorage", FakeStorage)
+    response = client.delete(f"/listings/{listing_id}/images/{image_id}")
+
+    assert response.status_code == 204
+    assert FakeStorage.removed_objects == [f"listings/{listing_id}/remove.png"]
+    assert client.get(f"/listings/{listing_id}").json()["images"] == []
+
+
+def test_renter_cannot_remove_listing_image(client: TestClient) -> None:
+    override_user("renter-1", "renter")
+    response = client.delete(
+        f"/listings/{listing_id}/images/dddddddd-4444-4444-8444-444444444444"
+    )
+    assert response.status_code == 403
 
 
 def test_storage_rejects_invalid_file_type() -> None:

@@ -12,7 +12,6 @@ _LOCAL_ONLY_HOSTS = {
     "0.0.0.0",
     "host.docker.internal",
     "postgres",
-    "keycloak",
     "minio",
 }
 
@@ -56,17 +55,14 @@ class Settings(BaseSettings):
     )
     max_image_upload_mb: int = Field(default=5, alias="MAX_IMAGE_UPLOAD_MB")
 
-    keycloak_issuer: str = Field(
-        default="http://localhost:8080/realms/marketplace",
-        alias="KEYCLOAK_ISSUER",
+    clerk_secret_key: str = Field(default="", alias="CLERK_SECRET_KEY")
+    clerk_webhook_signing_secret: str = Field(
+        default="",
+        alias="CLERK_WEBHOOK_SIGNING_SECRET",
     )
-    keycloak_authorized_party: str = Field(
-        default="marketplace-api",
-        alias="KEYCLOAK_AUTHORIZED_PARTY",
-    )
-    keycloak_jwks_url: str = Field(
-        default="http://localhost:8080/realms/marketplace/protocol/openid-connect/certs",
-        alias="KEYCLOAK_JWKS_URL",
+    clerk_authorized_parties: str | None = Field(
+        default=None,
+        alias="CLERK_AUTHORIZED_PARTIES",
     )
 
     model_config = SettingsConfigDict(
@@ -96,18 +92,22 @@ class Settings(BaseSettings):
                 "MIGRATION_DATABASE_URL",
                 self.migration_database_url,
             )
-        self._validate_external_service("KEYCLOAK_ISSUER", self.keycloak_issuer)
-        self._validate_external_service("KEYCLOAK_JWKS_URL", self.keycloak_jwks_url)
         self._validate_external_service("MINIO_ENDPOINT", self.minio_endpoint)
         self._validate_external_service("MINIO_PUBLIC_URL", self.minio_public_url)
         self._validate_required("MINIO_BUCKET_LISTING_IMAGES", self.minio_bucket_listing_images)
         self._validate_required("MINIO_ROOT_USER", self.minio_root_user)
         self._validate_required("MINIO_ROOT_PASSWORD", self.minio_root_password)
+        self._validate_required("CLERK_SECRET_KEY", self.clerk_secret_key)
         self._validate_required(
-            "KEYCLOAK_AUTHORIZED_PARTY",
-            self.keycloak_authorized_party,
+            "CLERK_WEBHOOK_SIGNING_SECRET",
+            self.clerk_webhook_signing_secret,
         )
         return self
+
+    @property
+    def clerk_authorized_party_list(self) -> list[str]:
+        configured = self.clerk_authorized_parties or self.frontend_origin
+        return [value.strip().rstrip("/") for value in configured.split(",") if value.strip()]
 
     def _validate_frontend_origin(self) -> None:
         origin = (self.frontend_origin or "").strip()

@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { OwnerListingForm } from "@/components/OwnerListingForm";
+import { AdminListingForm } from "@/components/OwnerListingForm";
 import { ApiError, createListing, getCategories } from "@/lib/api";
 import type { ListingInput } from "@/types";
 
@@ -39,7 +39,7 @@ function NewListing() {
       {catsQ.isLoading ? (
         <p className="text-muted-foreground">Loading categories…</p>
       ) : (
-        <OwnerListingForm
+        <AdminListingForm
           categories={catsQ.data ?? []}
           submitLabel="Create listing"
           onSubmit={onSubmit}

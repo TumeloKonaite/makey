@@ -57,17 +57,17 @@ def client() -> Generator[TestClient, None, None]:
 def seed_data(db: Session) -> None:
     provider = User(
         id=provider_id,
-        keycloak_user_id="owner-1",
+        clerk_user_id="admin-1",
         email="owner@example.com",
         display_name="Owner One",
-        role="provider",
+        role="admin",
     )
     other_provider = User(
         id=other_provider_id,
-        keycloak_user_id="owner-2",
+        clerk_user_id="admin-2",
         email="other-owner@example.com",
         display_name="Owner Two",
-        role="provider",
+        role="admin",
     )
     category = Category(
         id=category_id,
@@ -112,12 +112,12 @@ def seed_data(db: Session) -> None:
     db.commit()
 
 
-def override_user(user_id: str, roles: list[str]) -> None:
+def override_user(user_id: str, role: str) -> None:
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
         sub=user_id,
         email=f"{user_id}@example.com",
         username=user_id,
-        roles=roles,
+        role=role,
     )
 
 
@@ -167,7 +167,7 @@ def test_public_listing_detail_returns_404_for_draft_listing(client: TestClient)
 
 
 def test_owner_can_list_their_own_listings_including_drafts(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.get("/me/listings")
 
@@ -181,7 +181,7 @@ def test_owner_can_list_their_own_listings_including_drafts(client: TestClient) 
 
 
 def test_owner_can_view_their_own_draft_listing(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.get(f"/me/listings/{draft_listing_id}")
 
@@ -195,7 +195,7 @@ def test_owner_can_view_their_own_draft_listing(client: TestClient) -> None:
 def test_owner_cannot_view_another_owners_listing_in_owner_endpoint(
     client: TestClient,
 ) -> None:
-    override_user("owner-2", ["owner"])
+    override_user("admin-2", "admin")
 
     response = client.get(f"/me/listings/{published_listing_id}")
 
@@ -210,8 +210,29 @@ def test_owner_listing_routes_require_authentication(client: TestClient) -> None
     assert detail_response.status_code == 401
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        ("get", "/me/listings", None),
+        ("get", f"/me/listings/{published_listing_id}", None),
+        ("post", "/listings", {}),
+        ("patch", f"/listings/{published_listing_id}", {"title": "Nope"}),
+        ("delete", f"/listings/{published_listing_id}", None),
+    ],
+)
+def test_renter_is_forbidden_from_every_listing_management_route(
+    client: TestClient,
+    method: str,
+    path: str,
+    payload: dict[str, str] | None,
+) -> None:
+    override_user("renter-1", "renter")
+    response = client.request(method, path, json=payload)
+    assert response.status_code == 403
+
+
 def test_owner_can_update_their_listing(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.patch(
         f"/listings/{draft_listing_id}",
@@ -251,7 +272,7 @@ def test_owner_can_update_their_listing(client: TestClient) -> None:
 
 
 def test_owner_can_create_listing_with_rental_fields(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.post(
         "/listings",
@@ -293,8 +314,8 @@ def test_owner_can_create_listing_with_rental_fields(client: TestClient) -> None
     assert body["currency"] == "ZAR"
 
 
-def test_legacy_provider_role_still_can_create_listing(client: TestClient) -> None:
-    override_user("owner-1", ["provider"])
+def test_renter_cannot_create_listing(client: TestClient) -> None:
+    override_user("renter-1", "renter")
 
     response = client.post(
         "/listings",
@@ -307,12 +328,11 @@ def test_legacy_provider_role_still_can_create_listing(client: TestClient) -> No
         },
     )
 
-    assert response.status_code == 201
-    assert response.json()["owner_id"] == str(provider_id)
+    assert response.status_code == 403
 
 
 def test_non_owner_cannot_update_another_listing(client: TestClient) -> None:
-    override_user("owner-2", ["owner"])
+    override_user("admin-2", "admin")
 
     response = client.patch(
         f"/listings/{published_listing_id}",
@@ -327,7 +347,7 @@ def test_non_owner_cannot_update_another_listing(client: TestClient) -> None:
 
 
 def test_owner_can_delete_their_listing(client: TestClient) -> None:
-    override_user("owner-1", ["owner"])
+    override_user("admin-1", "admin")
 
     response = client.delete(f"/listings/{published_listing_id}")
 
@@ -338,7 +358,7 @@ def test_owner_can_delete_their_listing(client: TestClient) -> None:
 
 
 def test_non_owner_cannot_delete_another_listing(client: TestClient) -> None:
-    override_user("owner-2", ["owner"])
+    override_user("admin-2", "admin")
 
     response = client.delete(f"/listings/{published_listing_id}")
 

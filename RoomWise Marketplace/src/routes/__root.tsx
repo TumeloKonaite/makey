@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
 import {
   Outlet,
   Link,
@@ -11,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { setClerkTokenGetter } from "../lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -81,13 +83,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Browse rooms to rent across South African cities and suburbs. Monthly rent, deposits, furnished options and direct enquiries to owners.",
+          "Browse rooms to rent across South African cities and suburbs. Compare monthly rent, deposits, furnished options and availability.",
       },
       { name: "author", content: "Marketplace Rooms" },
       { property: "og:title", content: "Marketplace Rooms — Rooms to rent in South Africa" },
       {
         property: "og:description",
-        content: "Find rooms to rent by city, suburb and budget. Enquire directly with owners.",
+        content: "Find rooms to rent by city, suburb and budget.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -113,7 +115,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <ClerkProvider>{children}</ClerkProvider>
         <Scripts />
       </body>
     </html>
@@ -125,8 +127,20 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ClerkTokenBridge />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
   );
+}
+
+function ClerkTokenBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setClerkTokenGetter(getToken);
+    return () => setClerkTokenGetter(null);
+  }, [getToken]);
+
+  return null;
 }

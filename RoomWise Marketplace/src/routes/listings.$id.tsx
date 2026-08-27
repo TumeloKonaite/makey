@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
-import { EnquiryForm } from "@/components/EnquiryForm";
 import { Badge } from "@/components/ui/badge";
 import { getCategories, getListing } from "@/lib/api";
 import { formatZAR, formatDate, isAvailableNow } from "@/lib/format";
@@ -33,7 +32,7 @@ function ListingDetail() {
         {listingQ.isError && <p className="mt-8 text-destructive">Couldn't load this listing.</p>}
 
         {listing && (
-          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] mt-6">
+          <div className="mt-6">
             <div className="space-y-6">
               <div className="rounded-3xl overflow-hidden bg-muted aspect-[4/3] relative">
                 {listing.images.length > 0 ? (
@@ -117,10 +116,6 @@ function ListingDetail() {
                 <p className="text-sm text-muted-foreground">Listed by {listing.owner_name}</p>
               )}
             </div>
-
-            <aside className="lg:sticky lg:top-24 h-fit">
-              <EnquiryForm listingId={listing.id} listingTitle={listing.title} />
-            </aside>
           </div>
         )}
       </main>

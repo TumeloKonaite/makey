@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { OwnerListingForm } from "@/components/OwnerListingForm";
+import { AdminListingForm } from "@/components/OwnerListingForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import {
   ApiError,
   getCategories,
   getMyListing,
+  removeListingImage,
   updateListing,
   uploadListingImage,
 } from "@/lib/api";
@@ -38,6 +39,7 @@ function EditListing() {
   const [uploadOrder, setUploadOrder] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null);
 
   async function onSubmit(input: ListingInput) {
     setErrors({});
@@ -77,6 +79,19 @@ function EditListing() {
     }
   }
 
+  async function onRemoveImage(imageId: string) {
+    setUploadError(null);
+    setRemovingImageId(imageId);
+    try {
+      await removeListingImage(id, imageId);
+      await qc.invalidateQueries({ queryKey: ["me", "listing", id] });
+    } catch (err) {
+      setUploadError((err as Error).message);
+    } finally {
+      setRemovingImageId(null);
+    }
+  }
+
   const listing = listingQ.data;
 
   return (
@@ -95,7 +110,7 @@ function EditListing() {
       ) : (
         <>
           {saved && <p className="text-sm text-primary bg-primary/10 rounded p-2">Saved.</p>}
-          <OwnerListingForm
+          <AdminListingForm
             categories={catsQ.data ?? []}
             initial={listing}
             submitLabel="Save changes"
@@ -108,8 +123,7 @@ function EditListing() {
             <div>
               <h2 className="font-serif text-xl">Photos</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload JPEG, PNG or WebP images. Photos can't currently be re-ordered or removed
-                after upload, so upload thoughtfully.
+                Upload JPEG, PNG or WebP images. Existing photos can be removed below.
               </p>
             </div>
 
@@ -128,6 +142,16 @@ function EditListing() {
                           Cover
                         </span>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="absolute bottom-2 right-2"
+                        disabled={removingImageId === img.id}
+                        onClick={() => void onRemoveImage(img.id)}
+                      >
+                        {removingImageId === img.id ? "Removing…" : "Remove"}
+                      </Button>
                     </div>
                   ))}
               </div>

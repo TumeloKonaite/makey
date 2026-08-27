@@ -178,12 +178,8 @@ def test_s3_access_key_aliases_are_supported(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("MINIO_ACCESS_KEY", "access-key")
     monkeypatch.setenv("MINIO_SECRET_KEY", "secret-key")
     monkeypatch.setenv("MINIO_BUCKET_LISTING_IMAGES", "rooms_marketplace")
-    monkeypatch.setenv("KEYCLOAK_ISSUER", "https://auth.example.com/realms/marketplace")
-    monkeypatch.setenv("KEYCLOAK_AUTHORIZED_PARTY", "marketplace-api")
-    monkeypatch.setenv(
-        "KEYCLOAK_JWKS_URL",
-        "https://auth.example.com/realms/marketplace/protocol/openid-connect/certs",
-    )
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_example")
+    monkeypatch.setenv("CLERK_WEBHOOK_SIGNING_SECRET", "whsec_example")
     get_settings.cache_clear()
     settings = Settings()
 
@@ -224,9 +220,8 @@ def _production_settings(**overrides: str) -> Settings:
         "MINIO_ROOT_USER": "access-key",
         "MINIO_ROOT_PASSWORD": "secret-key",
         "MINIO_BUCKET_LISTING_IMAGES": "listing-images",
-        "KEYCLOAK_ISSUER": "https://auth.example.com/realms/marketplace",
-        "KEYCLOAK_AUTHORIZED_PARTY": "marketplace-api",
-        "KEYCLOAK_JWKS_URL": "https://auth.example.com/realms/marketplace/protocol/openid-connect/certs",
+        "CLERK_SECRET_KEY": "sk_test_example",
+        "CLERK_WEBHOOK_SIGNING_SECRET": "whsec_example",
     }
     values.update(overrides)
     return Settings(**values)

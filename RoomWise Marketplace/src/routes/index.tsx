@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Find rooms to rent in Cape Town, Johannesburg, Durban and Pretoria. Compare rent, deposits, furnishing and move-in dates — then enquire directly with the owner.",
+          "Find rooms to rent in Cape Town, Johannesburg, Durban and Pretoria. Compare rent, deposits, furnishing and move-in dates.",
       },
       {
         property: "og:title",
@@ -25,8 +25,7 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:description",
-        content:
-          "Browse real rooms across South Africa and enquire directly with owners. No agents in between.",
+        content: "Browse real rooms across South Africa and compare rental details in one place.",
       },
     ],
   }),
@@ -55,11 +54,11 @@ function Home() {
               <span className="h-px w-8 bg-primary" /> Rooms across South Africa
             </span>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-foreground">
-              Find your next room, straight from the owner.
+              Find your next room with the details that matter.
             </h1>
             <p className="text-base sm:text-lg text-muted-foreground max-w-xl">
               Browse real rooms across South Africa. Compare rent, deposits, furnishing, utilities
-              and move-in dates — then enquire directly.
+              and move-in dates.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <Link to="/listings">
@@ -69,12 +68,6 @@ function Home() {
                 <Button size="lg" variant="outline">
                   Explore categories
                 </Button>
-              </Link>
-              <Link
-                to="/login"
-                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
-              >
-                Own a room? Sign in
               </Link>
             </div>
           </div>
@@ -177,26 +170,6 @@ function Home() {
               </Link>
             );
           })}
-        </div>
-      </section>
-
-      {/* Owner CTA */}
-      <section className="w-full mt-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="rounded-3xl bg-muted border border-border px-6 sm:px-10 py-10 sm:py-14 flex flex-col sm:flex-row sm:items-center gap-6 sm:justify-between">
-            <div className="space-y-2 max-w-xl">
-              <h2 className="font-serif text-2xl sm:text-3xl text-foreground">
-                List your room in minutes.
-              </h2>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                Reach renters directly. No agents, no listing fees — just enquiries straight to your
-                inbox.
-              </p>
-            </div>
-            <Link to="/login">
-              <Button size="lg">List your room</Button>
-            </Link>
-          </div>
         </div>
       </section>
 

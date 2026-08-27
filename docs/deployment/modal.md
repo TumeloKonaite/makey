@@ -28,10 +28,10 @@ Before deploying, make sure the backend's production dependencies are reachable
 from the public internet or from the network path available to Modal:
 
 - PostgreSQL
-- Keycloak issuer and JWKS URL
+- Clerk's Backend API and JWKS endpoints
 - S3-compatible object storage for listing images
 
-Do not point production values at `localhost`, `postgres`, `keycloak`,
+Do not point production values at `localhost`, `postgres`,
 `minio`, or `host.docker.internal`. The backend now rejects those values when
 `APP_ENV` is not local.
 
@@ -105,9 +105,9 @@ modal secret create rooms-marketplace-api-secrets \
   FRONTEND_ORIGIN=https://rooms.example.com \
   DATABASE_URL='postgresql+psycopg://user:password@db.example.com:6543/marketplace' \
   MIGRATION_DATABASE_URL='postgresql+psycopg://user:password@db.example.com:5432/marketplace' \
-  KEYCLOAK_ISSUER='https://auth.example.com/realms/marketplace' \
-  KEYCLOAK_AUTHORIZED_PARTY='marketplace-api' \
-  KEYCLOAK_JWKS_URL='https://auth.example.com/realms/marketplace/protocol/openid-connect/certs' \
+  CLERK_SECRET_KEY='sk_live_...' \
+  CLERK_WEBHOOK_SIGNING_SECRET='whsec_...' \
+  CLERK_AUTHORIZED_PARTIES='https://rooms.example.com' \
   MINIO_ENDPOINT='https://<project-ref>.storage.supabase.co/storage/v1/s3' \
   MINIO_REGION='<project-region>' \
   MINIO_PUBLIC_URL='https://<project-ref>.supabase.co/storage/v1/object/public' \
@@ -188,7 +188,7 @@ Check a public endpoint:
 curl https://<modal-endpoint>/listings
 ```
 
-Check an authenticated owner route with a production Keycloak access token:
+Check an authenticated admin route with a production Clerk session token:
 
 ```bash
 curl -X POST https://<modal-endpoint>/listings \
@@ -228,9 +228,9 @@ Stopping is destructive. Deploy the same source again if you want the App back.
 ## Troubleshooting
 
 If `modal deploy modal_app.py` fails during settings initialization, inspect the
-secret values first. Non-local deploys now fail fast when `FRONTEND_ORIGIN`,
-`DATABASE_URL`, `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URL`, `MINIO_ENDPOINT`, or
-`MINIO_PUBLIC_URL` still point at local-only hosts.
+secret values first. Non-local deploys fail fast when `FRONTEND_ORIGIN`,
+`DATABASE_URL`, `MINIO_ENDPOINT`, or `MINIO_PUBLIC_URL` still point at
+local-only hosts, or when Clerk server secrets are missing.
 
 If `/ready` returns a database error, verify the production PostgreSQL host,
 credentials, firewall rules, and SSL requirements in `DATABASE_URL`.
@@ -242,6 +242,6 @@ can actually load.
 If browser requests fail with CORS in production, confirm `FRONTEND_ORIGIN`
 matches the deployed frontend origin exactly, including scheme.
 
-If authenticated routes return `401`, confirm the production token's issuer and
-authorized party match `KEYCLOAK_ISSUER` and `KEYCLOAK_AUTHORIZED_PARTY`, and
-that `KEYCLOAK_JWKS_URL` is publicly reachable from Modal.
+If authenticated routes return `401`, confirm the frontend and backend use the
+same Clerk production instance and that the request origin is included in
+`CLERK_AUTHORIZED_PARTIES`.

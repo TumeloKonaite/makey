@@ -1,10 +1,8 @@
 import { API_BASE_URL } from "./env";
-import { getAccessToken, logout } from "./auth";
+import { getAccessToken } from "./auth";
 import type {
   ApiErrorPayload,
   Category,
-  Enquiry,
-  EnquiryInput,
   FastApiFieldError,
   Listing,
   ListingImage,
@@ -61,7 +59,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   }
 
   if (opts.auth) {
-    const token = getAccessToken();
+    const token = await getAccessToken();
     if (!token) throw new ApiError(401, { detail: "Not signed in" });
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -97,12 +95,6 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    if (res.status === 401 && opts.auth) {
-      logout();
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.replace("/login");
-      }
-    }
     if (import.meta.env.DEV) {
       console.error(`[api] ${res.status} ${opts.method || "GET"} ${url}`, parsed);
     }
@@ -115,10 +107,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 export const getCategories = () => request<Category[]>("/categories");
 export const getListings = () => request<Listing[]>("/listings");
 export const getListing = (id: string) => request<Listing>(`/listings/${id}`);
-export const createEnquiry = (listingId: string, input: EnquiryInput) =>
-  request<Enquiry>(`/listings/${listingId}/enquiries`, { body: input });
-
-// Owner (protected)
+// Admin (protected)
 export const getMyListings = () => request<Listing[]>("/me/listings", { auth: true });
 export const getMyListing = (id: string) => request<Listing>(`/me/listings/${id}`, { auth: true });
 export const createListing = (input: ListingInput) =>
@@ -147,4 +136,8 @@ export const uploadListingImage = (
     auth: true,
   });
 };
-export const getOwnerEnquiries = () => request<Enquiry[]>("/me/owner-enquiries", { auth: true });
+export const removeListingImage = (listingId: string, imageId: string) =>
+  request<void>(`/listings/${listingId}/images/${imageId}`, {
+    method: "DELETE",
+    auth: true,
+  });

@@ -165,6 +165,9 @@ class MinioImageStorage:
         public_url = self.settings.minio_public_url.rstrip("/")
         return f"{public_url}/{self.bucket_name}/{object_name}"
 
+    def remove_listing_image(self, object_name: str) -> None:
+        self.client.remove_object(self.bucket_name, object_name)
+
     def _validate_image(self, file: UploadFile) -> str:
         content_type = (file.content_type or "").lower()
         extension = ALLOWED_IMAGE_TYPES.get(content_type)

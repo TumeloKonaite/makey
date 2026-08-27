@@ -1,11 +1,13 @@
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel
 
 
 class CurrentUser(BaseModel):
     sub: str
     email: str | None = None
     username: str | None = None
-    roles: list[str] = Field(default_factory=list)
+    role: Literal["admin", "renter"] = "renter"
 
     @property
     def id(self) -> str:

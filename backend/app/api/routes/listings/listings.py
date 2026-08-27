@@ -41,7 +41,7 @@ def list_listings(db: Session = Depends(get_db)) -> list[Listing]:
 )
 def list_my_listings(
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> list[Listing]:
     return service.list_my_listings(db, current_user)
 
@@ -60,7 +60,7 @@ def get_listing(listing_id: uuid.UUID, db: Session = Depends(get_db)) -> Listing
 def get_my_listing(
     listing_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> Listing:
     return service.get_my_listing(db, listing_id, current_user)
 
@@ -74,7 +74,7 @@ def get_my_listing(
 def create_listing(
     payload: ListingCreate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> Listing:
     return service.create_listing(db, payload, current_user)
 
@@ -84,7 +84,7 @@ def update_listing(
     listing_id: uuid.UUID,
     payload: ListingUpdate,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> Listing:
     return service.update_listing(db, listing_id, payload, current_user)
 
@@ -97,7 +97,7 @@ def update_listing(
 def delete_listing(
     listing_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> Response:
     service.delete_listing(db, listing_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -115,7 +115,7 @@ def add_listing_image(
     display_order: int = Form(0),
     is_cover: bool = Form(False),
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_role("owner")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ) -> ListingImage:
     service.ensure_listing_image_upload_allowed(db, listing_id, current_user)
 
@@ -139,3 +139,20 @@ def add_listing_image(
         is_cover=is_cover,
         current_user=current_user,
     )
+
+
+@router.delete(
+    "/listings/{listing_id}/images/{image_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["listings"],
+)
+def remove_listing_image(
+    listing_id: uuid.UUID,
+    image_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_role("admin")),
+) -> Response:
+    image = service.remove_listing_image(db, listing_id, image_id, current_user)
+    MinioImageStorage().remove_listing_image(image.object_name)
+    service.delete_listing_image_record(db, image)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -42,15 +42,15 @@ def list_listings(db: Session) -> list[Listing]:
 
 
 def list_my_listings(db: Session, current_user: CurrentUser) -> list[Listing]:
-    provider = _get_user_by_keycloak_id(db, current_user)
-    if provider is None:
+    admin_profile = _get_user_by_clerk_id(db, current_user)
+    if admin_profile is None:
         return []
 
     return list(
         db.scalars(
             select(Listing)
             .options(selectinload(Listing.images), selectinload(Listing.provider))
-            .where(Listing.provider_id == provider.id)
+            .where(Listing.provider_id == admin_profile.id)
             .order_by(Listing.created_at.desc())
         ).all()
     )
@@ -69,7 +69,7 @@ def get_my_listing(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot view another owner's listing.",
+        forbidden_detail="You cannot view another admin's listing.",
     )
 
 
@@ -79,9 +79,9 @@ def create_listing(
     current_user: CurrentUser,
 ) -> Listing:
     _ensure_category_exists(db, payload.category_id)
-    provider = _get_or_create_provider(db, current_user)
+    admin_profile = _get_or_create_admin_profile(db, current_user)
     listing = Listing(
-        provider_id=provider.id,
+        provider_id=admin_profile.id,
         category_id=payload.category_id,
         title=payload.title,
         slug=payload.slug or _slugify(payload.title),
@@ -116,7 +116,7 @@ def update_listing(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot update another owner's listing.",
+        forbidden_detail="You cannot update another admin's listing.",
     )
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -142,7 +142,7 @@ def delete_listing(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot delete another owner's listing.",
+        forbidden_detail="You cannot delete another admin's listing.",
     )
     db.delete(listing)
     db.commit()
@@ -176,6 +176,37 @@ def add_listing_image(
     return image
 
 
+def remove_listing_image(
+    db: Session,
+    listing_id: uuid.UUID,
+    image_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> ListingImage:
+    ensure_listing_owner_access(
+        db,
+        listing_id,
+        current_user,
+        forbidden_detail="You cannot remove images from another admin's listing.",
+    )
+    image = db.scalar(
+        select(ListingImage).where(
+            ListingImage.id == image_id,
+            ListingImage.listing_id == listing_id,
+        )
+    )
+    if image is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Listing image was not found.",
+        )
+    return image
+
+
+def delete_listing_image_record(db: Session, image: ListingImage) -> None:
+    db.delete(image)
+    db.commit()
+
+
 def ensure_listing_image_upload_allowed(
     db: Session,
     listing_id: uuid.UUID,
@@ -185,7 +216,7 @@ def ensure_listing_image_upload_allowed(
         db,
         listing_id,
         current_user,
-        forbidden_detail="You cannot upload images to another owner's listing.",
+        forbidden_detail="You cannot upload images to another admin's listing.",
     )
 
 
@@ -196,8 +227,8 @@ def ensure_listing_owner_access(
     forbidden_detail: str,
 ) -> Listing:
     listing = _get_listing_or_404(db, listing_id)
-    provider = _get_provider_or_forbid(db, current_user)
-    if listing.provider_id != provider.id:
+    admin_profile = _get_admin_profile_or_forbid(db, current_user)
+    if listing.provider_id != admin_profile.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=forbidden_detail,
@@ -240,41 +271,41 @@ def _get_listing_or_404(
     return listing
 
 
-def _get_or_create_provider(db: Session, current_user: CurrentUser) -> User:
-    provider = db.scalar(
-        select(User).where(User.keycloak_user_id == current_user.id).limit(1)
+def _get_or_create_admin_profile(db: Session, current_user: CurrentUser) -> User:
+    admin_profile = db.scalar(
+        select(User).where(User.clerk_user_id == current_user.id).limit(1)
     )
-    if provider is not None:
-        return provider
+    if admin_profile is not None:
+        return admin_profile
 
     if not current_user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authenticated owner token must include an email claim.",
+            detail="The admin profile has not been synchronized from Clerk yet.",
         )
 
-    provider = User(
-        keycloak_user_id=current_user.id,
+    admin_profile = User(
+        clerk_user_id=current_user.id,
         email=current_user.email,
         display_name=current_user.username or current_user.email,
-        role="provider",
+        role="admin",
     )
-    db.add(provider)
+    db.add(admin_profile)
     db.flush()
-    return provider
+    return admin_profile
 
 
-def _get_user_by_keycloak_id(db: Session, current_user: CurrentUser) -> User | None:
+def _get_user_by_clerk_id(db: Session, current_user: CurrentUser) -> User | None:
     return db.scalar(
-        select(User).where(User.keycloak_user_id == current_user.id).limit(1)
+        select(User).where(User.clerk_user_id == current_user.id).limit(1)
     )
 
 
-def _get_provider_or_forbid(db: Session, current_user: CurrentUser) -> User:
-    provider = _get_user_by_keycloak_id(db, current_user)
-    if provider is None:
+def _get_admin_profile_or_forbid(db: Session, current_user: CurrentUser) -> User:
+    admin_profile = _get_user_by_clerk_id(db, current_user)
+    if admin_profile is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner profile was not found.",
+            detail="Admin profile was not found.",
         )
-    return provider
+    return admin_profile

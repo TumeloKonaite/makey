@@ -1,26 +1,11 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { UserButton, useAuth } from "@clerk/tanstack-react-start";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { isAuthenticated, logout, getUsername } from "@/lib/auth";
+import { roleFromClaims } from "@/lib/auth";
 
 export function SiteHeader() {
-  const [authed, setAuthed] = useState(false);
-  const [user, setUser] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    const sync = () => {
-      setAuthed(isAuthenticated());
-      setUser(getUsername());
-    };
-    sync();
-    window.addEventListener("mr-auth-change", sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener("mr-auth-change", sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
+  const { isLoaded, isSignedIn, sessionClaims } = useAuth();
+  const isAdmin = isSignedIn && roleFromClaims(sessionClaims) === "admin";
 
   return (
     <header className="border-b border-border/70 bg-background/85 backdrop-blur sticky top-0 z-30">
@@ -46,28 +31,17 @@ export function SiteHeader() {
           >
             Room types
           </Link>
-          {authed ? (
+          {isLoaded && isSignedIn ? (
             <>
-              <Link
-                to="/dashboard"
-                className="text-foreground/80 hover:text-primary [&.active]:text-primary transition-colors"
-              >
-                Dashboard
-              </Link>
-              <span className="text-xs text-muted-foreground hidden lg:inline">{user}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  logout();
-                  router.navigate({ to: "/" });
-                }}
-              >
-                Sign out
-              </Button>
-              <Link to="/dashboard/listings/new" className="hidden sm:inline-flex">
-                <Button size="sm">List your room</Button>
-              </Link>
+              {isAdmin && (
+                <Link
+                  to="/dashboard"
+                  className="text-foreground/80 hover:text-primary [&.active]:text-primary transition-colors"
+                >
+                  Admin dashboard
+                </Link>
+              )}
+              <UserButton showName />
             </>
           ) : (
             <>
@@ -75,14 +49,14 @@ export function SiteHeader() {
                 to="/login"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Owner sign in
+                Sign in
               </Link>
               <Link to="/listings" className="sm:hidden">
                 <Button size="sm">Browse</Button>
               </Link>
-              <Link to="/login" className="hidden sm:inline-flex">
+              <Link to="/sign-up" className="hidden sm:inline-flex">
                 <Button size="sm" variant="outline">
-                  List your room
+                  Create account
                 </Button>
               </Link>
             </>
@@ -105,7 +79,7 @@ export function SiteFooter() {
             <span className="font-serif text-lg text-foreground">Marketplace Rooms</span>
           </div>
           <p className="text-muted-foreground max-w-xs">
-            Rooms to rent across South Africa. Enquire directly with owners.
+            Rooms to rent across South Africa, with clear details and simple browsing.
           </p>
         </div>
         <div className="space-y-2">
@@ -124,16 +98,11 @@ export function SiteFooter() {
           </ul>
         </div>
         <div className="space-y-2">
-          <div className="text-xs uppercase tracking-widest text-muted-foreground">For owners</div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground">Account</div>
           <ul className="space-y-1.5">
             <li>
               <Link to="/login" className="hover:text-primary">
-                Owner sign in
-              </Link>
-            </li>
-            <li>
-              <Link to="/dashboard/listings/new" className="hover:text-primary">
-                List your room
+                Sign in
               </Link>
             </li>
           </ul>

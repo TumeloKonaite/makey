@@ -115,17 +115,15 @@ modal deploy modal_app.py
 GitHub Actions runs backend tests plus frontend type-checking, linting, and a
 production build for pull requests and pushes to `main`. After CI succeeds on
 `main`, the CD workflow runs the production database migrations, deploys the
-backend to Modal, and deploys the frontend to Vercel. CD can also be started
-manually from the Actions tab.
+backend to Modal, and can also be started manually from the Actions tab. The
+frontend is deployed separately by Vercel's Git integration when `main` is
+updated.
 
 Configure these secrets in the repository's `production` GitHub environment:
 
 - `MODAL_TOKEN_ID`
 - `MODAL_TOKEN_SECRET`
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
 
-The Modal secret named `rooms-marketplace-api-secrets` and the Vercel project
-environment variables described above must already be configured on their
-respective platforms.
+The Modal secret named `rooms-marketplace-api-secrets` and the frontend's Vercel
+project environment variables must already be configured on their respective
+platforms.

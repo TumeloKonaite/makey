@@ -6,7 +6,7 @@ import { getCategories, getListing } from "@/lib/api";
 import { formatZAR, formatDate, isAvailableNow } from "@/lib/format";
 import { useState } from "react";
 
-export const Route = createFileRoute("/listings/$id")({
+export const Route = createFileRoute("/listings_/$id")({
   ssr: false,
   component: ListingDetail,
 });

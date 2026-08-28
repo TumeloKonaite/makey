@@ -18,7 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as LoginSplatRouteImport } from './routes/login.$'
-import { Route as ListingsIdRouteImport } from './routes/listings.$id'
+import { Route as ListingsIdRouteImport } from './routes/listings_.$id'
 import { Route as DashboardListingsIndexRouteImport } from './routes/dashboard.listings.index'
 import { Route as DashboardListingsNewRouteImport } from './routes/dashboard.listings.new'
 import { Route as DashboardListingsIdEditRouteImport } from './routes/dashboard.listings.$id.edit'
@@ -69,9 +69,9 @@ const LoginSplatRoute = LoginSplatRouteImport.update({
   getParentRoute: () => LoginRoute,
 } as any)
 const ListingsIdRoute = ListingsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ListingsRoute,
+  id: '/listings_/$id',
+  path: '/listings/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardListingsIndexRoute = DashboardListingsIndexRouteImport.update({
   id: '/listings/',
@@ -93,7 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/listings': typeof ListingsRouteWithChildren
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
   '/listings/$id': typeof ListingsIdRoute
@@ -107,7 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
-  '/listings': typeof ListingsRouteWithChildren
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
   '/listings/$id': typeof ListingsIdRoute
@@ -123,10 +123,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/listings': typeof ListingsRouteWithChildren
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
-  '/listings/$id': typeof ListingsIdRoute
+  '/listings_/$id': typeof ListingsIdRoute
   '/login/$': typeof LoginSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -172,7 +172,7 @@ export interface FileRouteTypes {
     | '/listings'
     | '/login'
     | '/sign-up'
-    | '/listings/$id'
+    | '/listings_/$id'
     | '/login/$'
     | '/sign-up/$'
     | '/dashboard/'
@@ -185,9 +185,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CategoriesRoute: typeof CategoriesRoute
   DashboardRoute: typeof DashboardRouteWithChildren
-  ListingsRoute: typeof ListingsRouteWithChildren
+  ListingsRoute: typeof ListingsRoute
   LoginRoute: typeof LoginRouteWithChildren
   SignUpRoute: typeof SignUpRouteWithChildren
+  ListingsIdRoute: typeof ListingsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -255,12 +256,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSplatRouteImport
       parentRoute: typeof LoginRoute
     }
-    '/listings/$id': {
-      id: '/listings/$id'
-      path: '/$id'
+    '/listings_/$id': {
+      id: '/listings_/$id'
+      path: '/listings/$id'
       fullPath: '/listings/$id'
       preLoaderRoute: typeof ListingsIdRouteImport
-      parentRoute: typeof ListingsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/listings/': {
       id: '/dashboard/listings/'
@@ -304,18 +305,6 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
-interface ListingsRouteChildren {
-  ListingsIdRoute: typeof ListingsIdRoute
-}
-
-const ListingsRouteChildren: ListingsRouteChildren = {
-  ListingsIdRoute: ListingsIdRoute,
-}
-
-const ListingsRouteWithChildren = ListingsRoute._addFileChildren(
-  ListingsRouteChildren,
-)
-
 interface LoginRouteChildren {
   LoginSplatRoute: typeof LoginSplatRoute
 }
@@ -341,9 +330,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriesRoute: CategoriesRoute,
   DashboardRoute: DashboardRouteWithChildren,
-  ListingsRoute: ListingsRouteWithChildren,
+  ListingsRoute: ListingsRoute,
   LoginRoute: LoginRouteWithChildren,
   SignUpRoute: SignUpRouteWithChildren,
+  ListingsIdRoute: ListingsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

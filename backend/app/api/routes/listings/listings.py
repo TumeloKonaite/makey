@@ -153,6 +153,7 @@ def remove_listing_image(
     current_user: CurrentUser = Depends(require_role("admin")),
 ) -> Response:
     image = service.remove_listing_image(db, listing_id, image_id, current_user)
+    # Remove the stored file before deleting its database record.
     MinioImageStorage().remove_listing_image(image.object_name)
     service.delete_listing_image_record(db, image)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

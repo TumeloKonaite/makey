@@ -38,6 +38,7 @@ def _authenticate_request(request: Request, settings: Settings) -> dict[str, Any
             request,
             AuthenticateRequestOptions(
                 authorized_parties=settings.clerk_authorized_party_list,
+                audience=settings.clerk_jwt_audience_list,
                 accepts_token=["session_token"],
             ),
         )
@@ -48,7 +49,10 @@ def _authenticate_request(request: Request, settings: Settings) -> dict[str, Any
 
     if not state.is_signed_in or not state.payload:
         raise _auth_error("Clerk session token is invalid or expired.")
-    return dict(state.payload)
+    payload = dict(state.payload)
+    if settings.clerk_jwt_issuer and payload.get("iss") != settings.clerk_jwt_issuer:
+        raise _auth_error("Clerk session token has an invalid issuer.")
+    return payload
 
 
 def _canonical_role(value: object) -> str:

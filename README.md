@@ -93,8 +93,10 @@ The database cutover is intentionally gated:
 4. `alembic upgrade head` refuses to finalize if any user is unreconciled; on
    success it makes `clerk_user_id` non-null and removes the legacy provider ID.
 
-See [docs/clerk-migration.md](docs/clerk-migration.md) for the full runbook and
-[docs/deployment/modal.md](docs/deployment/modal.md) for backend deployment.
+See [docs/clerk-migration.md](docs/clerk-migration.md) for the full runbook,
+[docs/deployment/container.md](docs/deployment/container.md) for the portable
+production image, and [docs/deployment/modal.md](docs/deployment/modal.md) for
+the existing Modal deployment.
 
 ## Deployment
 
@@ -103,7 +105,14 @@ directory empty and use `npm run build`; TanStack Start/Nitro generates the
 server output. Configure the Clerk development/preview or production keys in
 the matching Vercel environment.
 
-Deploy the Modal backend from the repository root:
+Build the platform-neutral backend image from the repository root:
+
+```bash
+docker build -t rooms-marketplace-api:local ./backend
+```
+
+Until the Azure cutover is validated, the existing Modal adapter remains
+deployable:
 
 ```bash
 modal run modal_app.py::run_migrations

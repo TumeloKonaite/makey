@@ -1,5 +1,24 @@
+# Secrets and local configuration
 .env
-__pycache__/
-*.pyc
-.pytest_cache/
+.env.*
+!.env.example
+
+# Development-only files
+.git/
+.github/
 .venv/
+tests/
+scripts/
+requirements-dev.txt
+docker-compose.yml
+pytest.ini
+
+# Generated output and caches
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.log

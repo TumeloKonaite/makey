@@ -25,16 +25,16 @@ def ready(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     try:
         check_database_connection()
         checks["database"] = "ok"
-    except Exception as exc:
+    except Exception:
         checks["database"] = "error"
-        errors["database"] = str(exc)
+        errors["database"] = "Database dependency is unavailable."
 
     try:
         check_listing_images_bucket(settings)
         checks["object_storage"] = "ok"
-    except Exception as exc:
+    except Exception:
         checks["object_storage"] = "error"
-        errors["object_storage"] = str(exc)
+        errors["object_storage"] = "Object-storage dependency is unavailable."
 
     body: dict[str, object] = {
         "status": "ok" if not errors else "error",
@@ -45,4 +45,3 @@ def ready(settings: Settings = Depends(get_settings)) -> dict[str, object]:
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=body)
 
     return body
-

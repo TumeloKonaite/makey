@@ -18,9 +18,18 @@ _LOCAL_ONLY_HOSTS = {
 
 class Settings(BaseSettings):
     app_name: str = Field(default="rooms-marketplace-api", alias="APP_NAME")
-    app_env: str = Field(default="local", alias="APP_ENV")
-    api_port: int = Field(default=8000, alias="API_PORT")
-    frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
+    app_env: str = Field(
+        default="local",
+        validation_alias=AliasChoices("ENVIRONMENT", "APP_ENV"),
+    )
+    api_port: int = Field(
+        default=8000,
+        validation_alias=AliasChoices("PORT", "API_PORT"),
+    )
+    frontend_origin: str = Field(
+        default="http://localhost:5173",
+        validation_alias=AliasChoices("CORS_ALLOWED_ORIGINS", "FRONTEND_ORIGIN"),
+    )
     frontend_preview_origin_regex: str | None = Field(
         default=None,
         alias="FRONTEND_PREVIEW_ORIGIN_REGEX",
@@ -34,36 +43,69 @@ class Settings(BaseSettings):
         default=None,
         alias="MIGRATION_DATABASE_URL",
     )
+    database_pool_size: int = Field(default=5, alias="DATABASE_POOL_SIZE", ge=1)
+    database_max_overflow: int = Field(default=5, alias="DATABASE_MAX_OVERFLOW", ge=0)
+    database_pool_timeout: int = Field(default=10, alias="DATABASE_POOL_TIMEOUT", ge=1)
+    database_pool_recycle: int = Field(default=1800, alias="DATABASE_POOL_RECYCLE", ge=1)
+    database_connect_timeout: int = Field(
+        default=5,
+        alias="DATABASE_CONNECT_TIMEOUT",
+        ge=1,
+    )
 
-    minio_endpoint: str = Field(default="http://localhost:9000", alias="MINIO_ENDPOINT")
-    minio_region: str | None = Field(default=None, alias="MINIO_REGION")
+    minio_endpoint: str = Field(
+        default="http://localhost:9000",
+        validation_alias=AliasChoices("OBJECT_STORAGE_ENDPOINT", "MINIO_ENDPOINT"),
+    )
+    minio_region: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OBJECT_STORAGE_REGION", "MINIO_REGION"),
+    )
     minio_public_url: str = Field(
         default="http://localhost:9000",
-        alias="MINIO_PUBLIC_URL",
+        validation_alias=AliasChoices("OBJECT_STORAGE_PUBLIC_URL", "MINIO_PUBLIC_URL"),
     )
     minio_root_user: str = Field(
         default="minioadmin",
-        validation_alias=AliasChoices("MINIO_ROOT_USER", "MINIO_ACCESS_KEY"),
+        validation_alias=AliasChoices(
+            "OBJECT_STORAGE_ACCESS_KEY",
+            "MINIO_ACCESS_KEY",
+            "MINIO_ROOT_USER",
+        ),
     )
     minio_root_password: str = Field(
         default="minioadmin",
-        validation_alias=AliasChoices("MINIO_ROOT_PASSWORD", "MINIO_SECRET_KEY"),
+        validation_alias=AliasChoices(
+            "OBJECT_STORAGE_SECRET_KEY",
+            "MINIO_SECRET_KEY",
+            "MINIO_ROOT_PASSWORD",
+        ),
     )
     minio_bucket_listing_images: str = Field(
         default="listing-images",
-        alias="MINIO_BUCKET_LISTING_IMAGES",
+        validation_alias=AliasChoices(
+            "OBJECT_STORAGE_BUCKET",
+            "MINIO_BUCKET_LISTING_IMAGES",
+        ),
     )
     max_image_upload_mb: int = Field(default=5, alias="MAX_IMAGE_UPLOAD_MB")
 
     clerk_secret_key: str = Field(default="", alias="CLERK_SECRET_KEY")
     clerk_webhook_signing_secret: str = Field(
         default="",
-        alias="CLERK_WEBHOOK_SIGNING_SECRET",
+        validation_alias=AliasChoices(
+            "CLERK_WEBHOOK_SECRET",
+            "CLERK_WEBHOOK_SIGNING_SECRET",
+        ),
     )
     clerk_authorized_parties: str | None = Field(
         default=None,
         alias="CLERK_AUTHORIZED_PARTIES",
     )
+    clerk_publishable_key: str | None = Field(default=None, alias="CLERK_PUBLISHABLE_KEY")
+    clerk_jwt_issuer: str | None = Field(default=None, alias="CLERK_JWT_ISSUER")
+    clerk_jwks_url: str | None = Field(default=None, alias="CLERK_JWKS_URL")
+    clerk_jwt_audience: str | None = Field(default=None, alias="CLERK_JWT_AUDIENCE")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -87,8 +129,13 @@ class Settings(BaseSettings):
         self._validate_frontend_origin()
         self._validate_frontend_preview_origin_regex()
         self._validate_external_service("DATABASE_URL", self.database_url)
+        self._validate_database_tls("DATABASE_URL", self.database_url)
         if self.migration_database_url:
             self._validate_external_service(
+                "MIGRATION_DATABASE_URL",
+                self.migration_database_url,
+            )
+            self._validate_database_tls(
                 "MIGRATION_DATABASE_URL",
                 self.migration_database_url,
             )
@@ -109,18 +156,35 @@ class Settings(BaseSettings):
         configured = self.clerk_authorized_parties or self.frontend_origin
         return [value.strip().rstrip("/") for value in configured.split(",") if value.strip()]
 
+    @property
+    def cors_allowed_origin_list(self) -> list[str]:
+        return [
+            value.strip().rstrip("/")
+            for value in self.frontend_origin.split(",")
+            if value.strip()
+        ]
+
+    @property
+    def clerk_jwt_audience_list(self) -> list[str] | None:
+        if not self.clerk_jwt_audience:
+            return None
+        values = [value.strip() for value in self.clerk_jwt_audience.split(",") if value.strip()]
+        return values or None
+
     def _validate_frontend_origin(self) -> None:
-        origin = (self.frontend_origin or "").strip()
-        if not origin or origin == "*":
+        origins = self.cors_allowed_origin_list
+        if not origins or "*" in origins:
             raise ValueError(
-                "FRONTEND_ORIGIN must be set to the deployed frontend URL when APP_ENV is not local."
+                "CORS_ALLOWED_ORIGINS must contain deployed frontend origins when ENVIRONMENT is not local."
             )
 
-        host = _extract_host(origin)
-        if host in _LOCAL_ONLY_HOSTS:
-            raise ValueError(
-                "FRONTEND_ORIGIN must not point at localhost or Docker-only hosts in non-local environments."
-            )
+        for origin in origins:
+            host = _extract_host(origin)
+            if host in _LOCAL_ONLY_HOSTS:
+                raise ValueError(
+                    "CORS_ALLOWED_ORIGINS must not contain localhost or Docker-only hosts "
+                    "in non-local environments."
+                )
 
     def _validate_frontend_preview_origin_regex(self) -> None:
         pattern = (self.frontend_preview_origin_regex or "").strip()
@@ -148,15 +212,33 @@ class Settings(BaseSettings):
                 f"{name} must be set when APP_ENV is not local."
             )
 
+    def _validate_database_tls(self, name: str, value: str) -> None:
+        parsed = urlparse(value)
+        if not parsed.scheme.startswith("postgresql"):
+            raise ValueError(f"{name} must use postgresql+psycopg://.")
+        if parsed.scheme != "postgresql+psycopg":
+            raise ValueError(f"{name} must use the synchronous psycopg SQLAlchemy driver.")
+
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        sslmode = query.get("sslmode", "").lower()
+        if sslmode and sslmode not in {"verify-ca", "verify-full"}:
+            raise ValueError(
+                f"{name} sslmode must be verify-ca or verify-full in non-local environments."
+            )
+
     @property
     def alembic_database_url(self) -> str:
         return _normalize_sqlalchemy_database_url(
-            self.migration_database_url or self.database_url
+            self.migration_database_url or self.database_url,
+            require_tls=not self.is_local,
         )
 
     @property
     def sqlalchemy_database_url(self) -> str:
-        return _normalize_sqlalchemy_database_url(self.database_url)
+        return _normalize_sqlalchemy_database_url(
+            self.database_url,
+            require_tls=not self.is_local,
+        )
 
 
 @lru_cache
@@ -176,7 +258,11 @@ def _extract_host(value: str) -> str | None:
     return None
 
 
-def _normalize_sqlalchemy_database_url(value: str | None) -> str:
+def _normalize_sqlalchemy_database_url(
+    value: str | None,
+    *,
+    require_tls: bool = False,
+) -> str:
     candidate = (value or "").strip()
     if not candidate:
         return candidate
@@ -187,4 +273,6 @@ def _normalize_sqlalchemy_database_url(value: str | None) -> str:
         for key, query_value in parse_qsl(parsed.query, keep_blank_values=True)
         if key.lower() != "pgbouncer"
     ]
+    if require_tls and not any(key.lower() == "sslmode" for key, _ in filtered_query):
+        filtered_query.append(("sslmode", "verify-full"))
     return urlunparse(parsed._replace(query=urlencode(filtered_query)))

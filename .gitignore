@@ -14,6 +14,9 @@ backend/.venv/
 .env
 .env.modal
 backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.server-test.example
 
 # Test and coverage artifacts
 .pytest_cache/

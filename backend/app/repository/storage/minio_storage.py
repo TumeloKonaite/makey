@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from fastapi import UploadFile
 from minio import Minio
+from urllib3 import PoolManager, Timeout
 
 from app.core.config import Settings, get_settings
 
@@ -47,6 +48,10 @@ def _get_minio_client(settings: Settings | None = None) -> Minio:
         secret_key=settings.minio_root_password,
         secure=secure,
         region=settings.minio_region,
+        http_client=PoolManager(
+            timeout=Timeout(connect=3.0, read=3.0),
+            retries=False,
+        ),
     )
     if path_prefix:
         _add_path_prefix(client, path_prefix)

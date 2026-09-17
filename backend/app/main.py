@@ -22,7 +22,7 @@ _LOCAL_DEV_ORIGIN_REGEX = (
 
 
 def _cors_origins(settings: Settings) -> list[str]:
-    origins = {settings.frontend_origin.rstrip("/")}
+    origins = set(settings.cors_allowed_origin_list)
     if settings.is_local:
         origins.update(
             {
@@ -62,8 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=_cors_origins(runtime_settings),
         allow_origin_regex=_cors_origin_regex(runtime_settings),
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["DELETE", "GET", "OPTIONS", "PATCH", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
     )
     web_app.include_router(health_router)
     web_app.include_router(categories_router)

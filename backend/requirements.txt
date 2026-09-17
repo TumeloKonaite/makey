@@ -1,7 +1,6 @@
 alembic==1.14.0
 clerk-backend-api>=6.0.0,<7.0.0
 fastapi==0.137.1
-modal
 minio==7.2.12
 psycopg[binary]==3.2.3
 pydantic-settings==2.7.1

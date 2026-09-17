@@ -72,7 +72,7 @@ def test_ready_returns_503_when_database_is_unavailable(
             "object_storage": "ok",
         },
         "errors": {
-            "database": "database unavailable",
+            "database": "Database dependency is unavailable.",
         },
     }
 
@@ -93,6 +93,29 @@ def test_production_cors_only_allows_configured_frontend_origin() -> None:
     assert allowed.headers["access-control-allow-origin"] == "https://rooms.example.com"
     assert allowed.headers["access-control-allow-credentials"] == "true"
     assert "access-control-allow-origin" not in blocked.headers
+
+
+def test_production_cors_preflight_allows_auth_headers_for_each_configured_origin() -> None:
+    app = create_app(
+        _production_settings(
+            CORS_ALLOWED_ORIGINS="https://rooms.example.com,https://www.rooms.example.com"
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/me/listings",
+            headers={
+                "Origin": "https://www.rooms.example.com",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://www.rooms.example.com"
+    assert "Authorization" in response.headers["access-control-allow-headers"]
+    assert "Content-Type" in response.headers["access-control-allow-headers"]
 
 
 def test_production_cors_allows_configured_vercel_preview_origin() -> None:
@@ -140,7 +163,7 @@ def test_production_cors_rejects_preview_origin_when_preview_support_is_disabled
 
 
 def test_missing_production_frontend_origin_fails_clearly() -> None:
-    with pytest.raises(ValidationError, match="FRONTEND_ORIGIN"):
+    with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
         _production_settings(FRONTEND_ORIGIN="")
 
 
@@ -193,26 +216,68 @@ def test_migration_database_url_overrides_runtime_database_url() -> None:
         MIGRATION_DATABASE_URL="postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:5432/postgres",
     )
 
-    assert settings.alembic_database_url.endswith(":5432/postgres")
+    assert settings.alembic_database_url == (
+        "postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:"
+        "5432/postgres?sslmode=verify-full"
+    )
 
 
 def test_supabase_pgbouncer_hint_is_removed_for_sqlalchemy() -> None:
     settings = _production_settings(
         DATABASE_URL=(
             "postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:"
-            "6543/postgres?pgbouncer=true&sslmode=require"
+            "6543/postgres?pgbouncer=true&sslmode=verify-full"
         )
     )
 
     assert settings.sqlalchemy_database_url == (
         "postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:"
-        "6543/postgres?sslmode=require"
+        "6543/postgres?sslmode=verify-full"
     )
+
+
+def test_production_database_url_defaults_to_certificate_verification() -> None:
+    settings = _production_settings()
+
+    assert settings.sqlalchemy_database_url.endswith("?sslmode=verify-full")
+
+
+def test_production_database_url_rejects_non_verifying_tls_mode() -> None:
+    with pytest.raises(ValidationError, match="sslmode"):
+        _production_settings(
+            DATABASE_URL=(
+                "postgresql+psycopg://user:password@db.example.com:5432/"
+                "marketplace?sslmode=require"
+            )
+        )
+
+
+def test_port_environment_and_object_storage_contract_aliases() -> None:
+    settings = Settings(
+        ENVIRONMENT="test",
+        PORT=9123,
+        OBJECT_STORAGE_ENDPOINT="https://storage.example.com",
+        OBJECT_STORAGE_BUCKET="images",
+        OBJECT_STORAGE_ACCESS_KEY="access",
+        OBJECT_STORAGE_SECRET_KEY="secret",
+        OBJECT_STORAGE_REGION="westeurope",
+        OBJECT_STORAGE_PUBLIC_URL="https://cdn.example.com",
+        CLERK_WEBHOOK_SECRET="whsec_example",
+    )
+
+    assert settings.api_port == 9123
+    assert settings.minio_endpoint == "https://storage.example.com"
+    assert settings.minio_bucket_listing_images == "images"
+    assert settings.minio_root_user == "access"
+    assert settings.minio_root_password == "secret"
+    assert settings.clerk_webhook_signing_secret == "whsec_example"
 
 
 def _production_settings(**overrides: str) -> Settings:
     values = {
-        "APP_ENV": "production",
+        # Use the canonical variable so this fixture takes precedence over the
+        # legacy APP_ENV=test exported by the CI job with pydantic-settings 2.7.
+        "ENVIRONMENT": "production",
         "FRONTEND_ORIGIN": "https://rooms.example.com",
         "DATABASE_URL": "postgresql+psycopg://user:password@db.example.com:5432/marketplace",
         "MINIO_ENDPOINT": "https://storage.example.com",

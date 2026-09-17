@@ -163,7 +163,7 @@ def test_production_cors_rejects_preview_origin_when_preview_support_is_disabled
 
 
 def test_missing_production_frontend_origin_fails_clearly() -> None:
-    with pytest.raises(ValidationError, match="FRONTEND_ORIGIN"):
+    with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
         _production_settings(FRONTEND_ORIGIN="")
 
 
@@ -272,7 +272,9 @@ def test_port_environment_and_object_storage_contract_aliases() -> None:
 
 def _production_settings(**overrides: str) -> Settings:
     values = {
-        "APP_ENV": "production",
+        # Use the canonical variable so this fixture takes precedence over the
+        # legacy APP_ENV=test exported by the CI job with pydantic-settings 2.7.
+        "ENVIRONMENT": "production",
         "FRONTEND_ORIGIN": "https://rooms.example.com",
         "DATABASE_URL": "postgresql+psycopg://user:password@db.example.com:5432/marketplace",
         "MINIO_ENDPOINT": "https://storage.example.com",

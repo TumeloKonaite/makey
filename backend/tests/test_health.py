@@ -216,7 +216,10 @@ def test_migration_database_url_overrides_runtime_database_url() -> None:
         MIGRATION_DATABASE_URL="postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:5432/postgres",
     )
 
-    assert settings.alembic_database_url.endswith(":5432/postgres")
+    assert settings.alembic_database_url == (
+        "postgresql+psycopg://user:password@aws-eu-west-1.pooler.supabase.com:"
+        "5432/postgres?sslmode=verify-full"
+    )
 
 
 def test_supabase_pgbouncer_hint_is_removed_for_sqlalchemy() -> None:

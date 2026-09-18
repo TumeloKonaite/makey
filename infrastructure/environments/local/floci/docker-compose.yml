@@ -1,0 +1,32 @@
+name: rooms-infrastructure-floci
+
+services:
+  floci-az:
+    image: floci/floci-az:0.13.0
+    container_name: rooms-floci-az
+    ports:
+      - "127.0.0.1:4577:4577"
+    environment:
+      FLOCI_AZ_TLS_ENABLED: "true"
+      FLOCI_AZ_HOSTNAME: "localhost"
+      FLOCI_AZ_SERVICES_CONTAINER_APPS_MOCKED: "false"
+      FLOCI_AZ_SERVICES_ACR_MOCKED: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - floci-data:/app/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q -O - http://localhost:4577/_floci/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - rooms-floci
+
+volumes:
+  floci-data:
+    name: rooms-floci-data
+
+networks:
+  rooms-floci:
+    name: rooms-floci-network

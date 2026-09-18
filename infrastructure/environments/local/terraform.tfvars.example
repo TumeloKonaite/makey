@@ -1,0 +1,16 @@
+# All values in this file are safe examples for the local emulator only.
+container_image = "nginx:1.27-alpine"
+container_port  = 80
+
+environment_variables = {
+  EXAMPLE_MODE = "floci"
+}
+
+secrets = {
+  database-url = "postgresql+psycopg://local:local@host.docker.internal:5432/rooms"
+}
+
+secret_environment_variables = {
+  DATABASE_URL = "database-url"
+}
+

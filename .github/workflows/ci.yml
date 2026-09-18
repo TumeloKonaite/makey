@@ -15,6 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terraform:
+    name: Terraform checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infrastructure/
+
+      - name: Initialize local Terraform root
+        run: terraform -chdir=infrastructure/environments/local init -backend=false
+
+      - name: Validate local Terraform root
+        run: terraform -chdir=infrastructure/environments/local validate
+
+      - name: Initialize production Terraform root
+        run: terraform -chdir=infrastructure/environments/production init -backend=false
+
+      - name: Validate production Terraform root
+        run: terraform -chdir=infrastructure/environments/production validate
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest

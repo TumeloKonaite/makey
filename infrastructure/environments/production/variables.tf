@@ -7,7 +7,7 @@ variable "location" { type = string }
 variable "resource_group_name" { type = string }
 variable "create_resource_group" {
   type    = bool
-  default = true
+  default = false
 }
 variable "container_registry_name" { type = string }
 variable "log_analytics_workspace_name" { type = string }
@@ -28,11 +28,11 @@ variable "memory" {
 }
 variable "min_replicas" {
   type    = number
-  default = 1
+  default = 0
 }
 variable "max_replicas" {
   type    = number
-  default = 3
+  default = 1
 }
 variable "environment_variables" {
   type    = map(string)
@@ -52,3 +52,53 @@ variable "tags" {
   default = {}
 }
 
+variable "frontend_origin" {
+  description = "Exact HTTPS origin of the production frontend."
+  type        = string
+
+  validation {
+    condition     = startswith(var.frontend_origin, "https://") && !strcontains(var.frontend_origin, "*")
+    error_message = "frontend_origin must be an exact HTTPS origin."
+  }
+}
+
+variable "postgresql_resource_group_name" {
+  type = string
+}
+
+variable "postgresql_server_name" {
+  type = string
+}
+
+variable "postgresql_database_name" {
+  type = string
+}
+
+variable "postgresql_username" {
+  type = string
+}
+
+variable "postgresql_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "postgresql_port" {
+  type    = number
+  default = 5432
+
+  validation {
+    condition     = var.postgresql_port == 5432
+    error_message = "The existing PostgreSQL server must use port 5432."
+  }
+}
+
+variable "postgresql_sslmode" {
+  type    = string
+  default = "verify-full"
+
+  validation {
+    condition     = var.postgresql_sslmode == "verify-full"
+    error_message = "The production database connection must verify the server certificate and hostname."
+  }
+}

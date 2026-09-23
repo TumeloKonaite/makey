@@ -2,8 +2,8 @@
 
 This directory contains a reusable Azure backend module and two deliberately
 separate Terraform roots. `environments/local` targets only the Floci Azure
-emulator. `environments/production` targets Azure and is preparation for a
-later, reviewed deployment—it must not be applied as part of local validation.
+emulator. `environments/production` targets Azure. Apply it with production
+inputs and a reviewed plan.
 
 ## Layout and requirements
 
@@ -108,17 +108,10 @@ be deleted.
 
 ## Production preparation
 
-Copy `backend.tf.example` to the ignored `backend.tf`, and copy
-`terraform.tfvars.example` to the ignored `terraform.tfvars`. Replace every
-placeholder and authenticate using the team's approved workload identity. Run
-`terraform init -reconfigure` and save/review a production plan, but do not
-apply it until the separate production-deployment change is approved.
-
 The shared module accepts either a new or existing resource group and configures
 external ingress, CPU/memory, replica bounds, runtime environment variables,
-secret references, registry access, and HTTP liveness/readiness probes.
-PostgreSQL is intentionally external: provide `DATABASE_URL` as a Container App
-secret and reference it through `secret_environment_variables`. No database,
+secret references, registry access, and HTTP startup/liveness/readiness probes.
+No database,
 object store, Clerk credential, or other secret value belongs in Git. Secret
 variables are marked sensitive, but values still enter Terraform state; the
 remote state store therefore requires access controls, encryption, and audit
@@ -164,3 +157,74 @@ production continues to apply all standard and supplied tags.
   Floci's service documentation. Record the limitation and validate that part
   in an isolated Azure development subscription; do not weaken the local
   provider safeguards.
+
+## Production Container Apps deployment
+
+The production root now uses an Azure Storage backend with the dedicated key
+`rooms-marketplace/production/container-apps.tfstate`. Bootstrap the state
+resource group, storage account, and `tfstate` container separately. Enable
+blob versioning and disable public blob access on the storage account. Grant
+the deployment identity Blob Data Contributor on the container and the Azure
+resource permissions needed by the configuration. The backend uses Azure AD
+authentication; do not use or commit storage keys. Keep the state container
+private and restrict its readers: Terraform state contains Container App secret
+values even though outputs omit them. Local Floci state remains in its separate
+root and is never migrated into this backend.
+
+From `infrastructure/environments/production`, copy
+`terraform.tfvars.example` to the ignored `terraform.tfvars` and fill in the
+real, non-secret inputs. Set `TF_VAR_postgresql_password` and `TF_VAR_secrets`
+through the approved secret runner or CI secret store; never write them to a
+committed file or shell history. `TF_VAR_secrets` must be a JSON map containing
+`clerk-secret-key`, `clerk-webhook-secret`, `object-storage-access-key`, and
+`object-storage-secret-key`. The four matching environment variable references
+are in the example. The production frontend URL and external object storage
+settings must also be real before deployment.
+
+The existing PostgreSQL Flexible Server is read from
+`rg-rooms-marketplace-prod/rooms-marketplace-postgres`; this configuration
+never creates or replaces it. Confirm its public network access is enabled
+before applying. The firewall rule `temporary-allow-azure-services` uses
+Azure's special `0.0.0.0` to `0.0.0.0` range, which permits connections from
+Azure hosted services broadly, including other tenants. This is **not** a
+client-wide `0.0.0.0/0` rule. Database authentication and TLS with hostname
+verification remain required. Remove this rule when private networking is
+implemented. If another Terraform stack currently owns the same firewall
+rule, import or transfer ownership before applying to avoid two writers.
+
+The database URL is constructed from the server's Azure FQDN, port 5432,
+user, database name, and the secure password input. It uses
+`postgresql+psycopg`, `sslmode=verify-full`, and the Azure root bundle baked
+into the production image. The server name alone is not used as the hostname.
+
+The shared module creates ACR. Push the production image to the configured ACR
+before the full Container App apply. For a new registry, create only the
+registry first with a reviewed, targeted plan, push the immutable image tag,
+then run a full plan and apply. Do not use a mutable `latest` tag. The image
+already starts Uvicorn at `0.0.0.0:8000`; Terraform does not override its
+command. Configure an external object store and existing bucket before
+starting the app; `/ready` checks both it and PostgreSQL.
+
+```bash
+az login
+terraform init -reconfigure \
+  -backend-config="resource_group_name=rg-rooms-terraform-state" \
+  -backend-config="storage_account_name=strmprodstate538a26" \
+  -backend-config="container_name=tfstate"
+terraform fmt -check -recursive ../../
+terraform validate
+terraform plan -out=production.tfplan
+terraform show production.tfplan
+terraform apply production.tfplan
+curl --fail --show-error "$(terraform output -raw container_app_url)/health"
+terraform plan
+```
+
+Also verify `/ready` returns 200, the approved frontend receives a CORS allow
+origin header while an unapproved origin does not, HTTP is rejected or
+redirected, and a database query succeeds over TLS. Confirm state is present in
+the configured blob container and `terraform output` contains no secrets.
+After idle scale down, request `/health` again and observe a revision return to
+one replica. `min_replicas = 0` causes cold starts; background jobs must not
+rely on a continuously running API replica. The deployment is capped at one
+replica.

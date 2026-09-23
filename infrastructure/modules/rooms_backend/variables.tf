@@ -109,15 +109,21 @@ variable "secret_environment_variables" {
   default     = {}
 
   validation {
-    condition     = alltrue([for secret_name in values(var.secret_environment_variables) : contains(keys(var.secrets), secret_name)])
+    condition     = alltrue([for secret_name in values(var.secret_environment_variables) : contains(nonsensitive(keys(var.secrets)), secret_name)])
     error_message = "Every secret_environment_variables value must name a key in secrets."
   }
 }
 
 variable "health_path" {
-  description = "FastAPI liveness and readiness endpoint."
+  description = "FastAPI startup and liveness endpoint."
   type        = string
   default     = "/health"
+}
+
+variable "readiness_path" {
+  description = "FastAPI readiness endpoint."
+  type        = string
+  default     = "/ready"
 }
 
 variable "tags" {

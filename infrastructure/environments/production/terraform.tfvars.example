@@ -1,46 +1,38 @@
-subscription_id                = "11111111-1111-1111-1111-111111111111"
+subscription_id                = "2eacbd13-2154-4b0a-a20f-d9f8cf538a26"
 location                       = "southafricanorth"
-resource_group_name            = "rg-rooms-production"
-container_registry_name        = "roomsproductionexample"
-log_analytics_workspace_name   = "log-rooms-production"
-container_app_environment_name = "cae-rooms-production"
-container_app_name             = "ca-rooms-api-production"
-container_image                = "roomsproductionexample.azurecr.io/rooms-api:replace-with-immutable-tag"
-container_port                 = 8000
-cpu                            = 0.5
-memory                         = "1Gi"
-min_replicas                   = 1
-max_replicas                   = 3
+resource_group_name            = "rg-rooms-marketplace-prod"
+create_resource_group          = false
+container_registry_name        = "strmacr538a26"
+log_analytics_workspace_name   = "log-rooms-marketplace-prod"
+container_app_environment_name = "cae-rooms-marketplace-prod"
+container_app_name             = "ca-rooms-marketplace-api-prod"
+container_image                = "strmacr538a26.azurecr.io/rooms-api:replace-with-immutable-tag"
+frontend_origin                = "https://replace-with-production-frontend.example.com"
 
+postgresql_resource_group_name = "rg-rooms-marketplace-prod"
+postgresql_server_name         = "rooms-marketplace-postgres"
+postgresql_database_name       = "rooms_marketplace"
+postgresql_username            = "replace_with_database_username"
+postgresql_port                = 5432
+postgresql_sslmode             = "verify-full"
+
+# The backend also requires durable, external S3-compatible object storage.
 environment_variables = {
-  CORS_ALLOWED_ORIGINS      = "https://rooms.example.com"
-  CLERK_AUTHORIZED_PARTIES  = "https://rooms.example.com"
-  OBJECT_STORAGE_ENDPOINT   = "https://replace.example.com"
+  OBJECT_STORAGE_ENDPOINT   = "https://replace-with-object-storage-api.example.com"
+  OBJECT_STORAGE_PUBLIC_URL = "https://replace-with-public-object-url.example.com"
   OBJECT_STORAGE_BUCKET     = "listing-images"
-  OBJECT_STORAGE_PUBLIC_URL = "https://cdn.example.com"
 }
 
-# Put real values in an uncommitted tfvars file, CI secret injection, or a
-# later Key Vault integration. Terraform state is sensitive data too.
-secrets = {
-  database-url              = "REPLACE_OUTSIDE_VERSION_CONTROL"
-  clerk-secret-key          = "REPLACE_OUTSIDE_VERSION_CONTROL"
-  clerk-webhook-secret      = "REPLACE_OUTSIDE_VERSION_CONTROL"
-  object-storage-access-key = "REPLACE_OUTSIDE_VERSION_CONTROL"
-  object-storage-secret-key = "REPLACE_OUTSIDE_VERSION_CONTROL"
+tags = {
+  owner = "tumelo"
 }
 
+# Supply TF_VAR_postgresql_password and TF_VAR_secrets securely at runtime.
+# TF_VAR_secrets must contain clerk-secret-key, clerk-webhook-secret,
+# object-storage-access-key, and object-storage-secret-key.
 secret_environment_variables = {
-  DATABASE_URL              = "database-url"
   CLERK_SECRET_KEY          = "clerk-secret-key"
   CLERK_WEBHOOK_SECRET      = "clerk-webhook-secret"
   OBJECT_STORAGE_ACCESS_KEY = "object-storage-access-key"
   OBJECT_STORAGE_SECRET_KEY = "object-storage-secret-key"
 }
-
-tags = {
-  application = "rooms-marketplace"
-  environment = "production"
-  owner       = "platform"
-}
-

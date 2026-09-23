@@ -85,9 +85,10 @@ resource "azurerm_container_app" "this" {
   }
 
   ingress {
-    external_enabled = true
-    target_port      = var.container_port
-    transport        = "http"
+    external_enabled           = true
+    target_port                = var.container_port
+    transport                  = "auto"
+    allow_insecure_connections = false
 
     traffic_weight {
       latest_revision = true
@@ -133,10 +134,19 @@ resource "azurerm_container_app" "this" {
         failure_count_threshold = 3
       }
 
-      readiness_probe {
+      startup_probe {
         transport               = "HTTP"
         port                    = var.container_port
         path                    = var.health_path
+        interval_seconds        = 5
+        timeout                 = 5
+        failure_count_threshold = 24
+      }
+
+      readiness_probe {
+        transport               = "HTTP"
+        port                    = var.container_port
+        path                    = var.readiness_path
         interval_seconds        = 10
         timeout                 = 5
         failure_count_threshold = 3

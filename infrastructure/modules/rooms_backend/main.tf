@@ -175,11 +175,21 @@ resource "azurerm_container_app" "this" {
   }
 }
 
+data "azurerm_container_app" "identity" {
+  count = var.use_acr_managed_identity ? 1 : 0
+
+  name                = azurerm_container_app.this.name
+  resource_group_name = azurerm_container_app.this.resource_group_name
+
+  # Defer the read until apply when a system-assigned principal exists.
+  depends_on = [azurerm_container_app.this]
+}
+
 resource "azurerm_role_assignment" "container_app_acr_pull" {
   count = var.use_acr_managed_identity ? 1 : 0
 
   scope                            = azurerm_container_registry.this.id
   role_definition_name             = "AcrPull"
-  principal_id                     = azurerm_container_app.this.identity[0].principal_id
+  principal_id                     = data.azurerm_container_app.identity[0].identity[0].principal_id
   skip_service_principal_aad_check = true
 }

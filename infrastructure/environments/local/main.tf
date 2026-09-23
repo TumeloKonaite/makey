@@ -5,6 +5,7 @@ module "rooms_backend" {
   location                       = var.location
   resource_group_name            = "rg-rooms-local-floci"
   container_registry_name        = "roomsflocilocal"
+  use_acr_managed_identity       = false
   log_analytics_workspace_name   = "log-rooms-local-floci"
   enable_log_analytics           = false
   container_app_environment_name = "cae-rooms-local-floci"

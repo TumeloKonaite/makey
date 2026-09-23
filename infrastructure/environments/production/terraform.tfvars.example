@@ -6,15 +6,12 @@ container_registry_name        = "strmacr538a26"
 log_analytics_workspace_name   = "log-rooms-marketplace-prod"
 container_app_environment_name = "cae-rooms-marketplace-prod"
 container_app_name             = "ca-rooms-marketplace-api-prod"
-container_image                = "strmacr538a26.azurecr.io/rooms-api:replace-with-immutable-tag"
+container_image                = "strmacr538a26.azurecr.io/rooms-api:0123456789abcdef0123456789abcdef01234567"
 frontend_origin                = "https://replace-with-production-frontend.example.com"
 
 postgresql_resource_group_name = "rg-rooms-marketplace-prod"
 postgresql_server_name         = "rooms-marketplace-postgres"
 postgresql_database_name       = "rooms_marketplace"
-postgresql_username            = "replace_with_database_username"
-postgresql_port                = 5432
-postgresql_sslmode             = "verify-full"
 
 # The backend also requires durable, external S3-compatible object storage.
 environment_variables = {
@@ -25,14 +22,4 @@ environment_variables = {
 
 tags = {
   owner = "tumelo"
-}
-
-# Supply TF_VAR_postgresql_password and TF_VAR_secrets securely at runtime.
-# TF_VAR_secrets must contain clerk-secret-key, clerk-webhook-secret,
-# object-storage-access-key, and object-storage-secret-key.
-secret_environment_variables = {
-  CLERK_SECRET_KEY          = "clerk-secret-key"
-  CLERK_WEBHOOK_SECRET      = "clerk-webhook-secret"
-  OBJECT_STORAGE_ACCESS_KEY = "object-storage-access-key"
-  OBJECT_STORAGE_SECRET_KEY = "object-storage-secret-key"
 }

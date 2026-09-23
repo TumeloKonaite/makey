@@ -13,7 +13,15 @@ variable "container_registry_name" { type = string }
 variable "log_analytics_workspace_name" { type = string }
 variable "container_app_environment_name" { type = string }
 variable "container_app_name" { type = string }
-variable "container_image" { type = string }
+variable "container_image" {
+  description = "Production ACR image reference tagged with the full lowercase Git commit SHA."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9]+\\.azurecr\\.io/[a-z0-9._/-]+:[0-9a-f]{40}$", var.container_image))
+    error_message = "container_image must be an ACR image reference tagged with the full 40-character lowercase Git SHA."
+  }
+}
 variable "container_port" {
   type    = number
   default = 8000
@@ -74,31 +82,32 @@ variable "postgresql_database_name" {
   type = string
 }
 
-variable "postgresql_username" {
-  type = string
+variable "database_url" {
+  description = "Production PostgreSQL SQLAlchemy connection URL."
+  type        = string
+  sensitive   = true
 }
 
-variable "postgresql_password" {
-  type      = string
-  sensitive = true
+variable "clerk_secret_key" {
+  description = "Production Clerk backend secret key."
+  type        = string
+  sensitive   = true
 }
 
-variable "postgresql_port" {
-  type    = number
-  default = 5432
-
-  validation {
-    condition     = var.postgresql_port == 5432
-    error_message = "The existing PostgreSQL server must use port 5432."
-  }
+variable "clerk_webhook_secret" {
+  description = "Production Clerk webhook signing secret."
+  type        = string
+  sensitive   = true
 }
 
-variable "postgresql_sslmode" {
-  type    = string
-  default = "verify-full"
+variable "object_storage_access_key" {
+  description = "Production object-storage access key."
+  type        = string
+  sensitive   = true
+}
 
-  validation {
-    condition     = var.postgresql_sslmode == "verify-full"
-    error_message = "The production database connection must verify the server certificate and hostname."
-  }
+variable "object_storage_secret_key" {
+  description = "Production object-storage secret key."
+  type        = string
+  sensitive   = true
 }

@@ -24,6 +24,12 @@ variable "container_registry_name" {
   type        = string
 }
 
+variable "use_acr_managed_identity" {
+  description = "Use the Container App system-assigned identity for ACR pulls and disable the ACR admin account. Disable only for local emulators."
+  type        = bool
+  default     = true
+}
+
 variable "log_analytics_workspace_name" {
   description = "Log Analytics workspace name."
   type        = string

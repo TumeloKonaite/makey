@@ -2,16 +2,20 @@ name: CD
 
 on:
   workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
   workflow_dispatch:
+    inputs:
+      image_sha:
+        description: Existing 40-character ACR image SHA to roll back to; leave empty to build this commit
+        required: false
+        type: string
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: production
@@ -19,35 +23,331 @@ concurrency:
 
 jobs:
   deploy-backend:
-    name: Deploy backend to Modal
+    name: Publish and deploy Azure backend
+
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.conclusion == 'success')
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.conclusion == 'success'
+      )
+
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+
     environment: production
+
     env:
-      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_REPOSITORY: rooms-api
+
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_resource_group_name: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+      TF_VAR_container_registry_name: ${{ vars.ACR_NAME }}
+
+      TF_VAR_log_analytics_workspace_name: ${{ vars.LOG_ANALYTICS_WORKSPACE_NAME }}
+      TF_VAR_container_app_environment_name: ${{ vars.CONTAINER_APP_ENVIRONMENT_NAME }}
+      TF_VAR_container_app_name: ${{ vars.CONTAINER_APP_NAME }}
+
+      TF_VAR_frontend_origin: ${{ vars.FRONTEND_ORIGIN }}
+
+      TF_VAR_postgresql_resource_group_name: ${{ vars.POSTGRESQL_RESOURCE_GROUP_NAME }}
+      TF_VAR_postgresql_server_name: ${{ vars.POSTGRESQL_SERVER_NAME }}
+      TF_VAR_postgresql_database_name: ${{ vars.POSTGRESQL_DATABASE_NAME }}
+
+      TF_VAR_database_url: ${{ secrets.TF_VAR_DATABASE_URL }}
+      TF_VAR_clerk_secret_key: ${{ secrets.TF_VAR_CLERK_SECRET_KEY }}
+      TF_VAR_clerk_webhook_secret: ${{ secrets.TF_VAR_CLERK_WEBHOOK_SECRET }}
+
+      TF_VAR_object_storage_access_key: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
+      TF_VAR_object_storage_secret_key: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
+      TF_VAR_environment_variables: ${{ vars.TF_VAR_ENVIRONMENT_VARIABLES }}
 
     steps:
+      - name: Resolve immutable deployment SHA
+        id: image
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.image_sha }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${REQUESTED_SHA}" ]]; then
+            image_sha="${REQUESTED_SHA}"
+            build=false
+          elif [[ -n "${VALIDATED_SHA}" ]]; then
+            image_sha="${VALIDATED_SHA}"
+            build=true
+          else
+            image_sha="${GITHUB_SHA}"
+            build=true
+          fi
+
+          [[ "${image_sha}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Deployment image tag must be a full lowercase Git SHA"
+            exit 1
+          }
+
+          echo "sha=${image_sha}" >> "${GITHUB_OUTPUT}"
+          echo "build=${build}" >> "${GITHUB_OUTPUT}"
+
       - name: Check out validated revision
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ steps.image.outputs.build == 'true' && steps.image.outputs.sha || github.sha }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@v2
         with:
-          python-version: "3.12"
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Modal CLI
-        run: python -m pip install modal
+      - name: Verify Azure context
+        shell: bash
+        run: |
+          set -euo pipefail
+          az account show \
+            --query '{subscription:id,tenant:tenantId}' \
+            --output json
 
-      - name: Run production database migrations
-        run: modal run modal_app.py::run_migrations
+      - name: Build and publish immutable image
+        if: steps.image.outputs.build == 'true'
+        shell: bash
+        env:
+          IMAGE_SHA: ${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
 
-      - name: Deploy backend
-        run: modal deploy modal_app.py
+          az acr login --name "${ACR_NAME}"
+
+          image="${ACR_NAME}.azurecr.io/${ACR_REPOSITORY}:${IMAGE_SHA}"
+
+          docker build \
+            --pull \
+            --tag "${image}" \
+            ./backend
+
+          docker push "${image}"
+
+      - name: Confirm rollback image exists
+        if: steps.image.outputs.build != 'true'
+        shell: bash
+        env:
+          IMAGE_SHA: ${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          az acr repository show \
+            --name "${ACR_NAME}" \
+            --image "${ACR_REPOSITORY}:${IMAGE_SHA}" \
+            --only-show-errors \
+            >/dev/null
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Initialize production state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform \
+            -chdir=infrastructure/environments/production \
+            init \
+            -reconfigure \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate"
+
+      - name: Validate production Terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform \
+            -chdir=infrastructure/environments/production \
+            validate
+
+      - name: Plan production revision
+        shell: bash
+        env:
+          TF_VAR_container_image: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          terraform \
+            -chdir=infrastructure/environments/production \
+            plan \
+            -input=false \
+            -out=production.tfplan
+
+      - name: Apply production revision
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform \
+            -chdir=infrastructure/environments/production \
+            apply \
+            -input=false \
+            -auto-approve \
+            production.tfplan
+
+      - name: Verify identity, image, and deployed revision
+        shell: bash
+        env:
+          EXPECTED_IMAGE: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          app_json="$(
+            az containerapp show \
+              --name "${{ vars.CONTAINER_APP_NAME }}" \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --output json
+          )"
+
+          actual_image="$(
+            jq -r '.properties.template.containers[0].image' \
+              <<<"${app_json}"
+          )"
+
+          [[ "${actual_image}" == "${EXPECTED_IMAGE}" ]] || {
+            echo "::error::Unexpected deployed image"
+            echo "Expected: ${EXPECTED_IMAGE}"
+            echo "Actual:   ${actual_image}"
+            exit 1
+          }
+
+          principal_id="$(
+            jq -r '.identity.principalId' \
+              <<<"${app_json}"
+          )"
+
+          registry_identity="$(
+            jq -r '.properties.configuration.registries[0].identity // empty' \
+              <<<"${app_json}"
+          )"
+
+          registry_username="$(
+            jq -r '.properties.configuration.registries[0].username // empty' \
+              <<<"${app_json}"
+          )"
+
+          registry_password_ref="$(
+            jq -r '.properties.configuration.registries[0].passwordSecretRef // empty' \
+              <<<"${app_json}"
+          )"
+
+          [[ -n "${principal_id}" && "${principal_id}" != "null" ]] || {
+            echo "::error::Container App system-assigned identity is missing"
+            exit 1
+          }
+
+          [[ "${registry_identity,,}" == "system" ]] || {
+            echo "::error::ACR authentication is not configured with the system-assigned identity"
+            exit 1
+          }
+
+          [[ -z "${registry_username}" && -z "${registry_password_ref}" ]] || {
+            echo "::error::Registry username/password authentication is unexpectedly configured"
+            exit 1
+          }
+
+          acr_id="$(
+            az acr show \
+              --name "${ACR_NAME}" \
+              --query id \
+              --output tsv
+          )"
+
+          admin_enabled="$(
+            az acr show \
+              --name "${ACR_NAME}" \
+              --query adminUserEnabled \
+              --output tsv
+          )"
+
+          [[ "${admin_enabled,,}" == "false" ]] || {
+            echo "::error::ACR admin user must remain disabled"
+            exit 1
+          }
+
+          assignments="$(
+            az role assignment list \
+              --assignee-object-id "${principal_id}" \
+              --all \
+              --query '[].{role:roleDefinitionName,scope:scope}' \
+              --output json
+          )"
+
+          acr_pull_count="$(
+            jq \
+              --arg acr_id "${acr_id,,}" \
+              '[.
+                []
+                | select(
+                    .role == "AcrPull" and
+                    (.scope | ascii_downcase) == $acr_id
+                  )
+              ]
+              | length' \
+              <<<"${assignments}"
+          )"
+
+          [[ "${acr_pull_count}" -eq 1 ]] || {
+            echo "::error::Expected exactly one AcrPull assignment on the ACR"
+            echo "${assignments}"
+            exit 1
+          }
+
+          fqdn="$(
+            jq -r '.properties.configuration.ingress.fqdn' \
+              <<<"${app_json}"
+          )"
+
+          [[ -n "${fqdn}" && "${fqdn}" != "null" ]] || {
+            echo "::error::Container App ingress FQDN is missing"
+            exit 1
+          }
+
+          curl \
+            --fail \
+            --show-error \
+            --retry 12 \
+            --retry-all-errors \
+            --retry-delay 10 \
+            "https://${fqdn}/health"
+
+          curl \
+            --fail \
+            --show-error \
+            --retry 6 \
+            --retry-all-errors \
+            --retry-delay 10 \
+            "https://${fqdn}/ready"
+
+          {
+            echo "### Production deployment"
+            echo
+            echo "- Image: \`${EXPECTED_IMAGE}\`"
+            echo "- Container App: \`${{ vars.CONTAINER_APP_NAME }}\`"
+            echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP }}\`"
+            echo "- Health URL: https://${fqdn}/health"
+            echo "- Ready URL: https://${fqdn}/ready"
+            echo "- Registry authentication: system-assigned managed identity"
+            echo "- ACR role: AcrPull"
+          } >> "${GITHUB_STEP_SUMMARY}"

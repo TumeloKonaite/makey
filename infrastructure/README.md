@@ -115,8 +115,9 @@ No database,
 object store, Clerk credential, or other secret value belongs in Git. Secret
 variables are marked sensitive, but values still enter Terraform state; the
 remote state store therefore requires access controls, encryption, and audit
-logging. A later improvement may replace inline values with Key Vault-backed
-secret references and managed-identity ACR pulls.
+logging. Production uses system-assigned managed identity for ACR pulls. See
+`docs/deployment/azure-production-security.md` for OIDC, RBAC, secrets, state,
+deployment, rollback, and the linked Key Vault follow-up.
 
 ## What Floci does not prove
 
@@ -173,12 +174,10 @@ root and is never migrated into this backend.
 
 From `infrastructure/environments/production`, copy
 `terraform.tfvars.example` to the ignored `terraform.tfvars` and fill in the
-real, non-secret inputs. Set `TF_VAR_postgresql_password` and `TF_VAR_secrets`
-through the approved secret runner or CI secret store; never write them to a
-committed file or shell history. `TF_VAR_secrets` must be a JSON map containing
-`clerk-secret-key`, `clerk-webhook-secret`, `object-storage-access-key`, and
-`object-storage-secret-key`. The four matching environment variable references
-are in the example. The production frontend URL and external object storage
+real, non-secret inputs. Supply `TF_VAR_database_url`, `TF_VAR_clerk_secret_key`,
+`TF_VAR_clerk_webhook_secret`, `TF_VAR_object_storage_access_key`, and
+`TF_VAR_object_storage_secret_key` through the protected production environment;
+never write them to a committed file or shell history. The production frontend URL and external object storage
 settings must also be real before deployment.
 
 The existing PostgreSQL Flexible Server is read from
@@ -192,10 +191,9 @@ verification remain required. Remove this rule when private networking is
 implemented. If another Terraform stack currently owns the same firewall
 rule, import or transfer ownership before applying to avoid two writers.
 
-The database URL is constructed from the server's Azure FQDN, port 5432,
-user, database name, and the secure password input. It uses
-`postgresql+psycopg`, `sslmode=verify-full`, and the Azure root bundle baked
-into the production image. The server name alone is not used as the hostname.
+Supply the complete production database URL through `TF_VAR_database_url`. It must use
+the `postgresql+psycopg` driver, TLS hostname verification, and the Azure root
+bundle at `/etc/ssl/certs/azure-postgresql-roots.pem`.
 
 The shared module creates ACR. Push the production image to the configured ACR
 before the full Container App apply. For a new registry, create only the

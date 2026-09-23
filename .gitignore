@@ -22,3 +22,20 @@ backend/.env.*
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Terraform working data, inputs, plans, and state
+**/.terraform/
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+*.tfplan
+terraform.tfstate
+terraform.tfstate.*
+!**/terraform.tfvars.example
+
+# Database exports can contain production data and credentials
+*.backup
+*.backup.gz
+*.dump
+*.sql.gz

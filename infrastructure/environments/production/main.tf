@@ -12,10 +12,6 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "temporary_azure_ser
   end_ip_address   = "0.0.0.0"
 }
 
-locals {
-  database_url = "postgresql+psycopg://${replace(urlencode(var.postgresql_username), "+", "%20")}:${replace(urlencode(var.postgresql_password), "+", "%20")}@${data.azurerm_postgresql_flexible_server.existing.fqdn}:${var.postgresql_port}/${replace(urlencode(var.postgresql_database_name), "+", "%20")}?sslmode=${var.postgresql_sslmode}&sslrootcert=/etc/ssl/certs/azure-postgresql-roots.pem"
-}
-
 module "rooms_backend" {
   source = "../../modules/rooms_backend"
 
@@ -24,6 +20,7 @@ module "rooms_backend" {
   resource_group_name            = var.resource_group_name
   create_resource_group          = var.create_resource_group
   container_registry_name        = var.container_registry_name
+  use_acr_managed_identity       = true
   log_analytics_workspace_name   = var.log_analytics_workspace_name
   container_app_environment_name = var.container_app_environment_name
   container_app_name             = var.container_app_name
@@ -38,13 +35,28 @@ module "rooms_backend" {
     CLERK_AUTHORIZED_PARTIES = var.frontend_origin
   })
   secrets = merge(var.secrets, {
-    database-url = local.database_url
+    database-url              = var.database_url
+    clerk-secret-key          = var.clerk_secret_key
+    clerk-webhook-secret      = var.clerk_webhook_secret
+    object-storage-access-key = var.object_storage_access_key
+    object-storage-secret-key = var.object_storage_secret_key
   })
   secret_environment_variables = merge(var.secret_environment_variables, {
-    DATABASE_URL = "database-url"
+    DATABASE_URL              = "database-url"
+    CLERK_SECRET_KEY          = "clerk-secret-key"
+    CLERK_WEBHOOK_SECRET      = "clerk-webhook-secret"
+    OBJECT_STORAGE_ACCESS_KEY = "object-storage-access-key"
+    OBJECT_STORAGE_SECRET_KEY = "object-storage-secret-key"
   })
   tags = merge(var.tags, {
     application = "rooms-marketplace"
     environment = "production"
   })
+}
+
+check "container_image_uses_managed_acr" {
+  assert {
+    condition     = startswith(var.container_image, "${var.container_registry_name}.azurecr.io/")
+    error_message = "container_image must come from the ACR managed by this production root."
+  }
 }

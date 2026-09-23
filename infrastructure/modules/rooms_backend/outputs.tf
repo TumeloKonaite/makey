@@ -29,6 +29,11 @@ output "container_app_id" {
   value       = azurerm_container_app.this.id
 }
 
+output "container_app_principal_id" {
+  description = "Object ID of the Container App system-assigned identity."
+  value       = try(azurerm_container_app.this.identity[0].principal_id, null)
+}
+
 output "container_app_fqdn" {
   description = "Container App ingress FQDN."
   value       = azurerm_container_app.this.ingress[0].fqdn

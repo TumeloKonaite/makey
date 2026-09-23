@@ -26,7 +26,7 @@ resource "azurerm_container_registry" "this" {
   resource_group_name = local.resource_group_name
   location            = var.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = !var.use_acr_managed_identity
   tags                = local.common_tags
 
   depends_on = [azurerm_resource_group.this]
@@ -65,9 +65,17 @@ resource "azurerm_container_app" "this" {
   revision_mode                = "Single"
   tags                         = local.common_tags
 
-  secret {
-    name  = "registry-password"
-    value = azurerm_container_registry.this.admin_password
+  dynamic "identity" {
+    for_each = var.use_acr_managed_identity ? [1] : []
+    content { type = "SystemAssigned" }
+  }
+
+  dynamic "secret" {
+    for_each = var.use_acr_managed_identity ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = azurerm_container_registry.this.admin_password
+    }
   }
 
   dynamic "secret" {
@@ -78,10 +86,21 @@ resource "azurerm_container_app" "this" {
     }
   }
 
-  registry {
-    server               = azurerm_container_registry.this.login_server
-    username             = azurerm_container_registry.this.admin_username
-    password_secret_name = "registry-password"
+  dynamic "registry" {
+    for_each = var.use_acr_managed_identity ? [1] : []
+    content {
+      server   = azurerm_container_registry.this.login_server
+      identity = "System"
+    }
+  }
+
+  dynamic "registry" {
+    for_each = var.use_acr_managed_identity ? [] : [1]
+    content {
+      server               = azurerm_container_registry.this.login_server
+      username             = azurerm_container_registry.this.admin_username
+      password_secret_name = "registry-password"
+    }
   }
 
   ingress {
@@ -154,4 +173,13 @@ resource "azurerm_container_app" "this" {
       }
     }
   }
+}
+
+resource "azurerm_role_assignment" "container_app_acr_pull" {
+  count = var.use_acr_managed_identity ? 1 : 0
+
+  scope                            = azurerm_container_registry.this.id
+  role_definition_name             = "AcrPull"
+  principal_id                     = azurerm_container_app.this.identity[0].principal_id
+  skip_service_principal_aad_check = true
 }

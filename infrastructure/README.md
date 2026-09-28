@@ -193,8 +193,10 @@ From `infrastructure/environments/production`, copy
 real, non-secret inputs. Supply `TF_VAR_database_url`, `TF_VAR_clerk_secret_key`,
 `TF_VAR_clerk_webhook_secret`, `TF_VAR_object_storage_access_key`, and
 `TF_VAR_object_storage_secret_key` through the protected production environment;
-never write them to a committed file or shell history. The production frontend URL and external object storage
-settings must also be real before deployment.
+never write them to a committed file or shell history. The production frontend
+URL must also be real before deployment. The retained
+GCS endpoint, region, bucket, and public URL are explicit production-root
+defaults; see `docs/deployment/production-object-storage.md`.
 
 The existing PostgreSQL Flexible Server is read from
 `rg-rooms-marketplace-prod/rooms-marketplace-postgres`; this configuration

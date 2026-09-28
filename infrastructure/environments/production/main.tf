@@ -33,8 +33,12 @@ module "rooms_backend" {
   min_replicas                   = var.min_replicas
   max_replicas                   = var.max_replicas
   environment_variables = merge(var.environment_variables, {
-    CORS_ALLOWED_ORIGINS     = var.frontend_origin
-    CLERK_AUTHORIZED_PARTIES = var.frontend_origin
+    CORS_ALLOWED_ORIGINS      = var.frontend_origin
+    CLERK_AUTHORIZED_PARTIES  = var.frontend_origin
+    OBJECT_STORAGE_ENDPOINT   = var.object_storage_endpoint
+    OBJECT_STORAGE_REGION     = var.object_storage_region
+    OBJECT_STORAGE_BUCKET     = var.object_storage_bucket
+    OBJECT_STORAGE_PUBLIC_URL = var.object_storage_public_url
   })
   secrets = merge(var.secrets, {
     database-url              = var.database_url

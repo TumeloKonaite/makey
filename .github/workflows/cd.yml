@@ -133,8 +133,9 @@ jobs:
         run: |
           set -euo pipefail
           app_json="$(az containerapp show --name "${{ vars.CONTAINER_APP_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --output json 2>/dev/null || true)"
-          previous_image="$(jq -r '.properties.template.containers[0].image // empty' <<<"${app_json:-{}}")"
-          previous_revision="$(jq -r '.properties.latestReadyRevisionName // empty' <<<"${app_json:-{}}")"
+          [[ -n "${app_json}" ]] || app_json='{}'
+          previous_image="$(jq -r '.properties.template.containers[0].image // empty' <<<"${app_json}")"
+          previous_revision="$(jq -r '.properties.latestReadyRevisionName // empty' <<<"${app_json}")"
           previous_sha="${previous_image##*:}"
 
           if [[ -n "${previous_image}" ]]; then

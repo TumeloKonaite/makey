@@ -294,37 +294,18 @@ jobs:
               --job-execution-name "${execution_name}" \
               --query properties.status --output tsv)"
             case "${status}" in
-              Succeeded) echo "Migration ${execution_name} succeeded"; break ;;
-              Failed|Stopped|Degraded) echo "::error::Migration ${execution_name} ended with ${status}"; exit 1 ;;
+              Succeeded) echo "Migration and revision verification ${execution_name} succeeded"; break ;;
+              Failed|Stopped|Degraded) echo "::error::Migration or revision verification ${execution_name} ended with ${status}"; exit 1 ;;
             esac
             sleep 10
           done
           [[ "${status}" == "Succeeded" ]] || { echo "::error::Migration timed out with status ${status}"; exit 1; }
 
-          verification_execution="$(az containerapp job start \
-            --name "${job_name}" \
-            --resource-group "${TF_VAR_resource_group_name}" \
-            --command python \
-            --args /app/app/scripts/verify_migration_state.py \
-            --query name --output tsv)"
-          [[ -n "${verification_execution}" ]] || { echo "::error::Azure did not return a migration-verification execution name"; exit 1; }
-
-          verification_status=Running
-          for _ in {1..60}; do
-            verification_status="$(az containerapp job execution show --name "${job_name}" --resource-group "${TF_VAR_resource_group_name}" --job-execution-name "${verification_execution}" --query properties.status --output tsv)"
-            case "${verification_status}" in
-              Succeeded) break ;;
-              Failed|Stopped|Degraded) echo "::error::Alembic revision verification ${verification_execution} ended with ${verification_status}"; exit 1 ;;
-            esac
-            sleep 10
-          done
-          [[ "${verification_status}" == "Succeeded" ]] || { echo "::error::Alembic revision verification timed out"; exit 1; }
           {
             echo "### Database migration"
             echo
             echo "- Job: \`${job_name}\`"
-            echo "- Upgrade execution: \`${execution_name}\` (Succeeded)"
-            echo "- Revision verification execution: \`${verification_execution}\` (Succeeded)"
+            echo "- Upgrade and revision verification execution: \`${execution_name}\` (Succeeded)"
             echo "- Result: database revision matches the image's single Alembic head"
           } >> "${GITHUB_STEP_SUMMARY}"
 

@@ -15,6 +15,13 @@ output "container_app_environment_name" {
   value = azurerm_container_app_environment.this.name
 }
 
+output "migration_job_name" {
+  value = try(azurerm_container_app_job.migrations[0].name, null)
+}
+output "migration_job_start_command" {
+  value = var.enable_migration_job ? "az containerapp job start --name ${azurerm_container_app_job.migrations[0].name} --resource-group ${local.resource_group_name}" : null
+}
+
 output "latest_revision_name" {
   value = azurerm_container_app.this.latest_revision_name
 }

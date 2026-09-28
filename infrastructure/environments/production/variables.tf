@@ -13,6 +13,10 @@ variable "container_registry_name" { type = string }
 variable "log_analytics_workspace_name" { type = string }
 variable "container_app_environment_name" { type = string }
 variable "container_app_name" { type = string }
+variable "migration_job_name" {
+  type    = string
+  default = "ca-rooms-marketplace-migrations-prod"
+}
 variable "container_image" {
   description = "Production ACR image reference tagged with the full lowercase Git commit SHA."
   type        = string
@@ -86,6 +90,10 @@ variable "database_url" {
   description = "Production PostgreSQL SQLAlchemy connection URL."
   type        = string
   sensitive   = true
+  validation {
+    condition     = startswith(var.database_url, "postgresql+psycopg://") && strcontains(lower(var.database_url), "sslmode=verify-full") && (strcontains(lower(var.database_url), "sslrootcert=%2fetc%2fssl%2fcerts%2fazure-postgresql-roots.pem") || strcontains(lower(var.database_url), "sslrootcert=/etc/ssl/certs/azure-postgresql-roots.pem"))
+    error_message = "database_url must use psycopg, sslmode=verify-full, and the Azure root bundle path."
+  }
 }
 
 variable "clerk_secret_key" {

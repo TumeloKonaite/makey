@@ -22,6 +22,13 @@ output "resource_group_name" {
   value = module.rooms_backend.resource_group_name
 }
 
+output "migration_job_name" {
+  value = module.rooms_backend.migration_job_name
+}
+output "migration_job_start_command" {
+  value = module.rooms_backend.migration_job_start_command
+}
+
 output "postgresql_server_fqdn" {
   value = data.azurerm_postgresql_flexible_server.existing.fqdn
 }

@@ -200,3 +200,120 @@ details were returned. Live Clerk-token acceptance, PostgreSQL server-side TLS
 inspection, and an end-to-end image upload require the corresponding external
 test credentials and services; use the commands above in the target staging
 environment rather than production credentials.
+
+## Production Alembic migration job
+
+Terraform provisions `azurerm_container_app_job.migrations` through the shared
+`rooms_backend` module. The production root enables it; the local Floci root
+leaves it disabled because Floci does not exercise Container Apps Jobs. The job
+has a manual trigger only, no ingress, one parallel replica, one required
+completion, one retry, and a 15-minute timeout. A Terraform apply creates or
+updates the job but never starts an execution.
+
+The job and API both use `container_image`, which production validates as an
+ACR image tagged with the full immutable Git SHA. The image contains Alembic,
+psycopg, `/app/alembic.ini`, the migration environment, and every revision.
+Its API entrypoint is overridden by the job with:
+
+```text
+alembic -c /app/alembic.ini upgrade head
+```
+
+Only `DATABASE_URL` is exposed to the job. It references the
+`database-url` Container Apps secret; it is not placed in the command or
+logs. Production Terraform requires `postgresql+psycopg`,
+`sslmode=verify-full`, and the image's Azure PostgreSQL CA bundle. The
+existing temporary Azure-services firewall rule supplies network reachability.
+Terraform state still contains the secret value and must remain access
+controlled.
+
+### Required deployment sequence
+
+1. Build, test, and publish the production image with the full commit SHA.
+2. Set `container_image` to that immutable tag, review a targeted plan, and
+   update only the job before the API revision exists:
+
+   ```bash
+   terraform plan \
+     -target='module.rooms_backend.azurerm_container_app_job.migrations[0]' \
+     -target='module.rooms_backend.azurerm_role_assignment.migration_job_acr_pull[0]' \
+     -out=migration-job.tfplan
+   terraform apply migration-job.tfplan
+   ```
+
+   Targeting is deliberately limited to this staged deployment operation; run
+   and review a full plan after the migration to reconcile the API and the rest
+   of the graph.
+3. Start the updated migration job and capture the returned execution name:
+
+   ```bash
+   az containerapp job start \
+     --name "$(terraform output -raw migration_job_name)" \
+     --resource-group "$(terraform output -raw resource_group_name)"
+   ```
+
+4. Wait until that execution reports `Succeeded`. A `Failed` status blocks
+   API deployment:
+
+   ```bash
+   az containerapp job execution list \
+     --name "$(terraform output -raw migration_job_name)" \
+     --resource-group "$(terraform output -raw resource_group_name)" \
+     --output table
+   ```
+
+5. Verify `alembic current` and `alembic heads`, then run the stricter
+   same-image check. It fails for no current revision, a mismatch, or multiple
+   heads and never prints the connection URL:
+
+   ```bash
+   docker run --rm --env-file /secure/path/production-db.env \
+     "${IMAGE_SHA}" alembic -c /app/alembic.ini current
+   docker run --rm --env-file /secure/path/production-db.env \
+     "${IMAGE_SHA}" alembic -c /app/alembic.ini heads
+   docker run --rm --env-file /secure/path/production-db.env \
+     "${IMAGE_SHA}" python /app/app/scripts/verify_migration_state.py
+   ```
+
+6. Deploy the API using the exact same SHA/digest only after steps 4 and 5
+   succeed. Start with no production traffic, then require `/health`,
+   `/ready`, and a database-backed read such as `GET /listings` to succeed
+   before shifting traffic.
+
+Inspect console logs for a particular execution with:
+
+```bash
+az containerapp job logs show \
+  --name "$(terraform output -raw migration_job_name)" \
+  --resource-group "$(terraform output -raw resource_group_name)" \
+  --execution <execution-name> --container alembic --follow
+```
+
+For retained logs, query the Container Apps environment's attached Log
+Analytics workspace. Preserve the execution name and logs as deployment
+evidence. Azure CLI logging flags can change between extension versions; use
+`az containerapp job logs show --help` for the installed extension.
+
+### Compatibility and failure policy
+
+All production migrations use expand-and-contract. Add nullable columns, new
+tables, and indexes before new code requires them. Preserve structures used by
+the active and previous API revisions. Do not rename or drop a column in the
+release that introduces its replacement. Defer destructive cleanup until the
+old revision can no longer receive traffic. Plan large-table locks and runtime,
+use PostgreSQL-safe/concurrent index operations where appropriate, and require
+a tested recovery plan for destructive data transformations. The migrated
+schema must remain compatible with the previous API revision so application
+rollback does not require a database downgrade.
+
+If the job fails, do not deploy or activate the API revision and do not blindly
+rerun it. Preserve its execution and logs; inspect the current Alembic revision,
+affected objects, data, and whether the transaction fully rolled back. Prefer a
+reviewed fix-forward migration while the database remains usable. Use a
+verified backup or point-in-time recovery only for unrecoverable corruption,
+and test the correction against production-like data before retrying. Record
+the failure, recovery, and final revision. Never automatically run
+`alembic downgrade`.
+
+If migration succeeds but the new API fails, return traffic to the previous API
+revision. The expand-and-contract rule is what makes that rollback safe.

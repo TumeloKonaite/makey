@@ -24,6 +24,8 @@ module "rooms_backend" {
   log_analytics_workspace_name   = var.log_analytics_workspace_name
   container_app_environment_name = var.container_app_environment_name
   container_app_name             = var.container_app_name
+  enable_migration_job           = true
+  migration_job_name             = var.migration_job_name
   container_image                = var.container_image
   container_port                 = var.container_port
   cpu                            = var.cpu
@@ -48,6 +50,7 @@ module "rooms_backend" {
     OBJECT_STORAGE_ACCESS_KEY = "object-storage-access-key"
     OBJECT_STORAGE_SECRET_KEY = "object-storage-secret-key"
   })
+  migration_secret_environment_variables = { DATABASE_URL = "database-url" }
   tags = merge(var.tags, {
     application = "rooms-marketplace"
     environment = "production"

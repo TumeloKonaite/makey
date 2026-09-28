@@ -8,7 +8,7 @@ from sqlalchemy import engine_from_config, pool
 BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR))
 
-from app.core.config import get_settings  # noqa: E402
+from app.core.config import get_migration_settings  # noqa: E402
 from app.repository.database.tables.alembic_bootstrap import target_metadata  # noqa: E402
 
 config = context.config
@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 
 
 def get_database_url() -> str:
-    return get_settings().alembic_database_url
+    return get_migration_settings().alembic_database_url
 
 
 def run_migrations_offline() -> None:

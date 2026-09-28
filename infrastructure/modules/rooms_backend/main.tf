@@ -84,8 +84,11 @@ resource "azurerm_container_app_job" "migrations" {
       image   = var.container_image
       cpu     = var.migration_job_cpu
       memory  = var.migration_job_memory
-      command = ["alembic"]
-      args    = ["-c", "/app/alembic.ini", "upgrade", "head"]
+      command = ["/bin/sh"]
+      args = [
+        "-c",
+        "alembic -c /app/alembic.ini upgrade head && python /app/app/scripts/verify_migration_state.py",
+      ]
       env {
         name  = "ENVIRONMENT"
         value = var.environment

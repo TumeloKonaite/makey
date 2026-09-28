@@ -216,7 +216,7 @@ psycopg, `/app/alembic.ini`, the migration environment, and every revision.
 Its API entrypoint is overridden by the job with:
 
 ```text
-alembic -c /app/alembic.ini upgrade head
+alembic -c /app/alembic.ini upgrade head && python /app/app/scripts/verify_migration_state.py
 ```
 
 Only `DATABASE_URL` is exposed to the job. It references the
@@ -262,9 +262,11 @@ controlled.
      --output table
    ```
 
-5. Verify `alembic current` and `alembic heads`, then run the stricter
-   same-image check. It fails for no current revision, a mismatch, or multiple
-   heads and never prints the connection URL:
+   `Succeeded` means both `upgrade head` and the strict same-image revision
+   check completed. The verifier fails for no current revision, a mismatch, or
+   multiple heads and never prints the connection URL.
+5. For manual diagnosis, inspect `alembic current`, `alembic heads`, and rerun
+   the same verifier with the release image:
 
    ```bash
    docker run --rm --env-file /secure/path/production-db.env \
@@ -275,7 +277,7 @@ controlled.
      "${IMAGE_SHA}" python /app/app/scripts/verify_migration_state.py
    ```
 
-6. Deploy the API using the exact same SHA/digest only after steps 4 and 5
+6. Deploy the API using the exact same SHA/digest only after step 4
    succeed. Start with no production traffic, then require `/health`,
    `/ready`, and a database-backed read such as `GET /listings` to succeed
    before shifting traffic.

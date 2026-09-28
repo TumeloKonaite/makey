@@ -115,7 +115,8 @@ No database,
 object store, Clerk credential, or other secret value belongs in Git. Secret
 variables are marked sensitive, but values still enter Terraform state; the
 remote state store therefore requires access controls, encryption, and audit
-logging. Production uses system-assigned managed identity for ACR pulls. See
+logging. Production uses a dedicated user-assigned managed identity, attached
+to both the API and migration job, for ACR pulls. See
 `docs/deployment/azure-production-security.md` for OIDC, RBAC, secrets, state,
 deployment, rollback, and the linked Key Vault follow-up.
 

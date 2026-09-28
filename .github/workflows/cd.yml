@@ -127,6 +127,34 @@ jobs:
             --query '{subscription:id,tenant:tenantId}' \
             --output json
 
+      - name: Record current production release
+        id: previous
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_json="$(az containerapp show --name "${{ vars.CONTAINER_APP_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --output json 2>/dev/null || true)"
+          previous_image="$(jq -r '.properties.template.containers[0].image // empty' <<<"${app_json:-{}}")"
+          previous_revision="$(jq -r '.properties.latestReadyRevisionName // empty' <<<"${app_json:-{}}")"
+          previous_sha="${previous_image##*:}"
+
+          if [[ -n "${previous_image}" ]]; then
+            [[ "${previous_sha}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Current production image is not an immutable Git SHA tag"; exit 1; }
+            az acr repository show --name "${ACR_NAME}" --image "${ACR_REPOSITORY}:${previous_sha}" --only-show-errors >/dev/null
+          fi
+
+          {
+            echo "PREVIOUS_IMAGE=${previous_image}"
+            echo "PREVIOUS_REVISION=${previous_revision}"
+            echo "PREVIOUS_SHA=${previous_sha}"
+          } >> "${GITHUB_ENV}"
+          {
+            echo "### Previous production release"
+            echo
+            echo "- Image: \`${previous_image:-<initial deployment>}\`"
+            echo "- Revision: \`${previous_revision:-<none>}\`"
+            echo "- Rollback image retained in ACR: $([[ -n "${previous_image}" ]] && echo yes || echo not-applicable)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Build and publish immutable image
         if: steps.image.outputs.build == 'true'
         shell: bash
@@ -138,13 +166,16 @@ jobs:
           az acr login --name "${ACR_NAME}"
 
           image="${ACR_NAME}.azurecr.io/${ACR_REPOSITORY}:${IMAGE_SHA}"
+          if az acr repository show --name "${ACR_NAME}" --image "${ACR_REPOSITORY}:${IMAGE_SHA}" --only-show-errors >/dev/null 2>&1; then
+            echo "Immutable SHA tag already exists; preserving the published manifest."
+          else
+            docker build \
+              --pull \
+              --tag "${image}" \
+              ./backend
 
-          docker build \
-            --pull \
-            --tag "${image}" \
-            ./backend
-
-          docker push "${image}"
+            docker push "${image}"
+          fi
 
       - name: Confirm rollback image exists
         if: steps.image.outputs.build != 'true'
@@ -159,6 +190,30 @@ jobs:
             --image "${ACR_REPOSITORY}:${IMAGE_SHA}" \
             --only-show-errors \
             >/dev/null
+
+      - name: Resolve published image digest
+        id: published
+        shell: bash
+        env:
+          IMAGE_SHA: ${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
+          image="${ACR_NAME}.azurecr.io/${ACR_REPOSITORY}:${IMAGE_SHA}"
+          digest="$(az acr repository show --name "${ACR_NAME}" --image "${ACR_REPOSITORY}:${IMAGE_SHA}" --query digest --output tsv --only-show-errors)"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::ACR did not return a valid immutable digest"; exit 1; }
+          digest_image="${ACR_NAME}.azurecr.io/${ACR_REPOSITORY}@${digest}"
+          {
+            echo "image=${image}"
+            echo "digest=${digest}"
+            echo "digest_image=${digest_image}"
+          } >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Release image"
+            echo
+            echo "- Git commit: \`${IMAGE_SHA}\`"
+            echo "- SHA-tagged image: \`${image}\`"
+            echo "- Digest: \`${digest}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
@@ -221,12 +276,15 @@ jobs:
           terraform -chdir="${tf_dir}" apply -input=false -auto-approve migration.tfplan
 
       - name: Run and verify database migration
+        id: migration
         shell: bash
         run: |
           set -euo pipefail
           job_name="$(terraform -chdir=infrastructure/environments/production output -raw migration_job_name)"
           execution_name="$(az containerapp job start --name "${job_name}" --resource-group "${TF_VAR_resource_group_name}" --query name --output tsv)"
           [[ -n "${execution_name}" ]] || { echo "::error::Azure did not return a migration execution name"; exit 1; }
+          echo "job_name=${job_name}" >> "${GITHUB_OUTPUT}"
+          echo "execution_name=${execution_name}" >> "${GITHUB_OUTPUT}"
 
           for _ in {1..90}; do
             status="$(az containerapp job execution show \
@@ -242,7 +300,35 @@ jobs:
           done
           [[ "${status}" == "Succeeded" ]] || { echo "::error::Migration timed out with status ${status}"; exit 1; }
 
+          verification_execution="$(az containerapp job start \
+            --name "${job_name}" \
+            --resource-group "${TF_VAR_resource_group_name}" \
+            --command python \
+            --args /app/app/scripts/verify_migration_state.py \
+            --query name --output tsv)"
+          [[ -n "${verification_execution}" ]] || { echo "::error::Azure did not return a migration-verification execution name"; exit 1; }
+
+          verification_status=Running
+          for _ in {1..60}; do
+            verification_status="$(az containerapp job execution show --name "${job_name}" --resource-group "${TF_VAR_resource_group_name}" --job-execution-name "${verification_execution}" --query properties.status --output tsv)"
+            case "${verification_status}" in
+              Succeeded) break ;;
+              Failed|Stopped|Degraded) echo "::error::Alembic revision verification ${verification_execution} ended with ${verification_status}"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          [[ "${verification_status}" == "Succeeded" ]] || { echo "::error::Alembic revision verification timed out"; exit 1; }
+          {
+            echo "### Database migration"
+            echo
+            echo "- Job: \`${job_name}\`"
+            echo "- Upgrade execution: \`${execution_name}\` (Succeeded)"
+            echo "- Revision verification execution: \`${verification_execution}\` (Succeeded)"
+            echo "- Result: database revision matches the image's single Alembic head"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Plan production revision
+        id: plan
         shell: bash
         env:
           TF_VAR_container_image: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
@@ -250,11 +336,29 @@ jobs:
           set -euo pipefail
           terraform -chdir=infrastructure/environments/production plan -input=false -out=production.tfplan
 
+          terraform -chdir=infrastructure/environments/production show -json production.tfplan \
+            | jq -r '[.resource_changes[]?.change.actions | join("/")] | group_by(.) | map({action: .[0], count: length}) | "| Action | Resources |\n|---|---:|\n" + (map("| `\(.action)` | \(.count) |") | join("\n"))' \
+            > /tmp/plan-summary.md
+          {
+            echo "### Terraform production plan"
+            echo
+            cat /tmp/plan-summary.md
+            echo
+            echo "The saved plan is kept only on this runner and applied unchanged; it is not uploaded because plan files may contain secrets."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Apply production revision
+        id: apply
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           terraform -chdir=infrastructure/environments/production apply -input=false -auto-approve production.tfplan
+          {
+            echo "### Terraform apply"
+            echo
+            echo "- Result: succeeded using the exact saved plan"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Refresh Azure OIDC session
         uses: azure/login@v2
@@ -264,9 +368,14 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify identity, image, and deployed revision
+        id: smoke
+        if: steps.apply.outcome == 'success'
+        continue-on-error: true
         shell: bash
         env:
           EXPECTED_IMAGE: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
+          EXPECTED_DIGEST: ${{ steps.published.outputs.digest }}
+          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
         run: |
           set -euo pipefail
 
@@ -288,6 +397,17 @@ jobs:
             echo "Actual:   ${actual_image}"
             exit 1
           }
+
+          actual_digest="$(az acr repository show \
+            --name "${ACR_NAME}" \
+            --image "${ACR_REPOSITORY}:${{ steps.image.outputs.sha }}" \
+            --query digest --output tsv --only-show-errors)"
+          [[ "${actual_digest}" == "${EXPECTED_DIGEST}" ]] || {
+            echo "::error::Deployed SHA tag no longer resolves to the published digest"
+            exit 1
+          }
+          new_revision="$(jq -r '.properties.latestReadyRevisionName // empty' <<<"${app_json}")"
+          [[ -n "${new_revision}" ]] || { echo "::error::No ready production revision was reported"; exit 1; }
 
           principal_id="$(
             jq -r '.identity.principalId' \
@@ -404,6 +524,22 @@ jobs:
             --retry-all-errors \
             --retry-delay 10 \
             "https://${fqdn}/ready"
+          health="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://${fqdn}/health")"
+          jq -e '.status == "ok"' <<<"${health}" >/dev/null
+          ready="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://${fqdn}/ready")"
+          jq -e '.status == "ok" and .checks.database == "ok" and .checks.object_storage == "ok"' <<<"${ready}" >/dev/null
+          categories="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://${fqdn}/categories")"
+          jq -e 'type == "array"' <<<"${categories}" >/dev/null
+
+          cors_headers="$(curl --fail --silent --show-error --dump-header - --output /dev/null \
+            --request OPTIONS --header "Origin: ${FRONTEND_ORIGIN}" \
+            --header 'Access-Control-Request-Method: GET' --proto '=https' --tlsv1.2 \
+            "https://${fqdn}/categories" | tr -d '\r')"
+          grep -Fqi "access-control-allow-origin: ${FRONTEND_ORIGIN}" <<<"${cors_headers}" || {
+            echo "::error::Production frontend origin was not allowed by CORS"
+            exit 1
+          }
+
 
           {
             echo "### Production deployment"
@@ -411,8 +547,91 @@ jobs:
             echo "- Image: \`${EXPECTED_IMAGE}\`"
             echo "- Container App: \`${{ vars.CONTAINER_APP_NAME }}\`"
             echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP }}\`"
+            echo "- Digest: \`${EXPECTED_DIGEST}\`"
+            echo "- Previous revision: \`${PREVIOUS_REVISION:-<none>}\`"
+            echo "- New revision: \`${new_revision}\`"
             echo "- Health URL: https://${fqdn}/health"
             echo "- Ready URL: https://${fqdn}/ready"
+            echo "- Deployment URL: https://${fqdn}"
+            echo "- HTTPS/TLS and public /health: passed"
+            echo "- /ready dependencies: passed"
+            echo "- PostgreSQL-backed GET /categories: passed"
+            echo "- CORS for configured frontend origin: passed"
+            echo "- Immutable deployed image and digest: passed"
             echo "- Registry authentication: user-assigned managed identity"
             echo "- ACR role: AcrPull"
           } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Roll back failed application release
+        id: rollback
+        if: >-
+          always() && env.PREVIOUS_IMAGE != '' &&
+          (steps.apply.outcome == 'failure' || (steps.apply.outcome == 'success' && steps.smoke.outcome != 'success'))
+        continue-on-error: true
+        shell: bash
+        env:
+          TF_VAR_container_image: ${{ env.PREVIOUS_IMAGE }}
+        run: |
+          set -euo pipefail
+          # Production migrations follow the documented expand-and-contract policy;
+          # the previous API must remain compatible with the migrated schema.
+          tf_dir="infrastructure/environments/production"
+          terraform -chdir="${tf_dir}" plan -input=false \
+            -target='module.rooms_backend.azurerm_container_app.this' \
+            -out=rollback.tfplan
+          terraform -chdir="${tf_dir}" apply -input=false -auto-approve rollback.tfplan
+
+          app_json="$(az containerapp show --name "${{ vars.CONTAINER_APP_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --output json)"
+          rollback_image="$(jq -r '.properties.template.containers[0].image' <<<"${app_json}")"
+          rollback_revision="$(jq -r '.properties.latestReadyRevisionName // empty' <<<"${app_json}")"
+          fqdn="$(jq -r '.properties.configuration.ingress.fqdn' <<<"${app_json}")"
+          [[ "${rollback_image}" == "${PREVIOUS_IMAGE}" ]] || { echo "::error::Rollback deployed an unexpected image"; exit 1; }
+          [[ -n "${rollback_revision}" && -n "${fqdn}" ]] || { echo "::error::Rollback has no ready revision or FQDN"; exit 1; }
+
+          health="$(curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 --proto '=https' --tlsv1.2 "https://${fqdn}/health")"
+          jq -e '.status == "ok"' <<<"${health}" >/dev/null
+          ready="$(curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 10 --proto '=https' --tlsv1.2 "https://${fqdn}/ready")"
+          jq -e '.status == "ok" and .checks.database == "ok"' <<<"${ready}" >/dev/null
+          categories="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://${fqdn}/categories")"
+          jq -e 'type == "array"' <<<"${categories}" >/dev/null
+          {
+            echo "### Automatic application rollback"
+            echo
+            echo "- Result: succeeded"
+            echo "- Restored image: \`${rollback_image}\`"
+            echo "- Restored revision: \`${rollback_revision}\`"
+            echo "- /health, /ready, and PostgreSQL-backed GET /categories: passed"
+            echo "- Database downgrade: not attempted"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Finalize deployment result
+        if: always()
+        shell: bash
+        env:
+          APPLY_OUTCOME: ${{ steps.apply.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          ROLLBACK_OUTCOME: ${{ steps.rollback.outcome }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Release result"
+            echo
+            echo "- Commit: \`${{ steps.image.outputs.sha }}\`"
+            echo "- Terraform plan: \`${{ steps.plan.outcome }}\`"
+            echo "- Terraform apply: \`${APPLY_OUTCOME}\`"
+            echo "- Migration job/execution: \`${{ steps.migration.outputs.job_name }}\` / \`${{ steps.migration.outputs.execution_name }}\`"
+            echo "- Smoke tests: \`${SMOKE_OUTCOME}\`"
+            echo "- Rollback: \`${ROLLBACK_OUTCOME}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${APPLY_OUTCOME}" != "success" || "${SMOKE_OUTCOME}" != "success" ]]; then
+            if [[ "${APPLY_OUTCOME}" == "skipped" ]]; then
+              echo "::error::Release stopped before application deployment; the current production application was unchanged"
+            elif [[ -z "${PREVIOUS_IMAGE}" ]]; then
+              echo "::error::Release failed and no previous immutable release exists; manual intervention is required"
+            elif [[ "${ROLLBACK_OUTCOME}" != "success" ]]; then
+              echo "::error::Release and automatic application rollback failed; manual intervention is required"
+            else
+              echo "::error::Release validation failed; the previous application image was restored successfully"
+            fi
+            exit 1
+          fi

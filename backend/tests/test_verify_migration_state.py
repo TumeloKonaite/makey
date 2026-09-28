@@ -1,3 +1,8 @@
+import subprocess
+import sys
+
+import pytest
+from app.core.config import MigrationSettings
 from app.scripts.verify_migration_state import revisions_match
 
 
@@ -9,15 +14,11 @@ def test_revision_verification_requires_one_matching_head() -> None:
     assert not revisions_match(("one",), ("one", "two"))
 
 
-from app.core.config import MigrationSettings
-
-
 def test_migration_settings_require_only_database_configuration() -> None:
     settings = MigrationSettings(
         ENVIRONMENT="production",
         DATABASE_URL=(
-            "postgresql+psycopg://user:password@db.example.com/database"
-            "?sslmode=verify-full"
+            "postgresql+psycopg://user:password@db.example.com/database?sslmode=verify-full"
         ),
         MIGRATION_DATABASE_URL=None,
     )
@@ -30,16 +31,11 @@ def test_migration_settings_reject_weak_production_tls() -> None:
         DATABASE_URL="postgresql+psycopg://user:password@db.example.com/database?sslmode=require",
         MIGRATION_DATABASE_URL=None,
     )
-    import pytest
     with pytest.raises(ValueError, match="verify PostgreSQL TLS"):
         _ = settings.alembic_database_url
 
 
-
 def test_alembic_metadata_import_does_not_initialize_api_settings() -> None:
-    import subprocess
-    import sys
-
     result = subprocess.run(
         [
             sys.executable,

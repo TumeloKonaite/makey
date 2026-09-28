@@ -90,6 +90,27 @@ credential at its source. For Azure identity compromise, remove the federated
 credential or role assignments immediately and review Entra, GitHub, ACR, and
 Container Apps audit logs.
 
+
+## Plan review and production approval model
+
+The protected `production` environment gates the entire CD job because both
+the Azure-backed plan and image publication require the production OIDC trust
+and because Terraform must receive sensitive application inputs to construct
+an exact plan. Approval therefore authorizes the release inputs and subsequent
+production mutation before the plan is generated; it is not a second approval
+of the rendered plan. This is a deliberate trade-off: splitting plan and apply
+would require transferring a plan file that can contain secret values between
+runners, or granting production credentials before approval.
+
+After approval, the workflow writes only resource action counts to the job
+summary and applies the exact saved plan on the same runner. It never uploads
+the binary plan as an ordinary artifact. Reviewers should validate the commit,
+full image SHA (or manual rollback SHA), workflow inputs, and configuration
+changes before approval, then inspect the redacted Terraform plan output and
+summary during the gated job. Changes requiring a distinct pre-apply human
+review must be planned from a secured operator environment and applied through
+the documented manual process; do not export that plan through GitHub artifacts.
+
 ## Deploy and validate
 
 A successful CI run on `main` triggers CD through the protected environment.

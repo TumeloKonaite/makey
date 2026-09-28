@@ -197,9 +197,7 @@ class Settings(BaseSettings):
     @property
     def cors_allowed_origin_list(self) -> list[str]:
         return [
-            value.strip().rstrip("/")
-            for value in self.frontend_origin.split(",")
-            if value.strip()
+            value.strip().rstrip("/") for value in self.frontend_origin.split(",") if value.strip()
         ]
 
     @property
@@ -246,9 +244,7 @@ class Settings(BaseSettings):
 
     def _validate_required(self, name: str, value: str) -> None:
         if not (value or "").strip():
-            raise ValueError(
-                f"{name} must be set when APP_ENV is not local."
-            )
+            raise ValueError(f"{name} must be set when APP_ENV is not local.")
 
     def _validate_database_tls(self, name: str, value: str) -> None:
         parsed = urlparse(value)

@@ -106,9 +106,7 @@ def check_listing_images_bucket(settings: Settings | None = None) -> bool:
     client = _get_minio_client(settings)
     try:
         if not client.bucket_exists(bucket_name):
-            raise RuntimeError(
-                f"Object-storage bucket '{bucket_name}' does not exist."
-            )
+            raise RuntimeError(f"Object-storage bucket '{bucket_name}' does not exist.")
     except RuntimeError:
         raise
     except Exception as exc:

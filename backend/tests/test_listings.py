@@ -4,17 +4,16 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from app.core.auth import get_current_user
 from app.core.security import CurrentUser
 from app.main import app
 from app.models import Category, Listing, User
 from app.repository.database.tables.base_model import Base
 from app.repository.database.tables.session_manager import get_db
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 category_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
 provider_id = uuid.UUID("aaaaaaaa-1111-4111-8111-111111111111")

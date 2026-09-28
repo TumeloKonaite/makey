@@ -1,12 +1,11 @@
 import uuid
 
 import pytest
+from app.models import User
+from app.repository.database.tables.base_model import Base
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-from app.models import User
-from app.repository.database.tables.base_model import Base
 
 
 def test_user_schema_uses_clerk_id_and_canonical_roles() -> None:

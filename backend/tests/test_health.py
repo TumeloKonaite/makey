@@ -3,12 +3,11 @@ from __future__ import annotations
 from collections.abc import Generator
 
 import pytest
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
 from app.api.routes import health as health_routes
 from app.core.config import Settings, get_settings
 from app.main import create_app
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 
 @pytest.fixture()
@@ -246,8 +245,7 @@ def test_production_database_url_rejects_non_verifying_tls_mode() -> None:
     with pytest.raises(ValidationError, match="sslmode"):
         _production_settings(
             DATABASE_URL=(
-                "postgresql+psycopg://user:password@db.example.com:5432/"
-                "marketplace?sslmode=require"
+                "postgresql+psycopg://user:password@db.example.com:5432/marketplace?sslmode=require"
             )
         )
 

@@ -1,16 +1,14 @@
 import uuid
 from collections.abc import Generator
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from app.main import app
 from app.models import Category
 from app.repository.database.tables.base_model import Base
 from app.repository.database.tables.session_manager import get_db
-
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 single_room_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
 shared_room_id = uuid.UUID("ff0cd8f5-e0aa-4874-8ad6-4566ed6e851e")

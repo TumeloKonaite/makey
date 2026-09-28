@@ -305,9 +305,7 @@ def _get_listing_or_404(
 
 def _get_or_create_admin_profile(db: Session, current_user: CurrentUser) -> User:
     """Load the admin profile or create it from Clerk user details."""
-    admin_profile = db.scalar(
-        select(User).where(User.clerk_user_id == current_user.id).limit(1)
-    )
+    admin_profile = db.scalar(select(User).where(User.clerk_user_id == current_user.id).limit(1))
     if admin_profile is not None:
         return admin_profile
 
@@ -330,9 +328,7 @@ def _get_or_create_admin_profile(db: Session, current_user: CurrentUser) -> User
 
 def _get_user_by_clerk_id(db: Session, current_user: CurrentUser) -> User | None:
     """Find the local user linked to the current Clerk user."""
-    return db.scalar(
-        select(User).where(User.clerk_user_id == current_user.id).limit(1)
-    )
+    return db.scalar(select(User).where(User.clerk_user_id == current_user.id).limit(1))
 
 
 def _get_admin_profile_or_forbid(db: Session, current_user: CurrentUser) -> User:

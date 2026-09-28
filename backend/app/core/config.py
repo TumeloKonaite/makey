@@ -16,6 +16,44 @@ _LOCAL_ONLY_HOSTS = {
 }
 
 
+class MigrationSettings(BaseSettings):
+    """Database-only settings for Alembic jobs with least-privilege secrets."""
+
+    app_env: str = Field(
+        default="local",
+        validation_alias=AliasChoices("ENVIRONMENT", "APP_ENV"),
+    )
+    database_url: str = Field(alias="DATABASE_URL")
+    migration_database_url: str | None = Field(
+        default=None,
+        alias="MIGRATION_DATABASE_URL",
+    )
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def alembic_database_url(self) -> str:
+        value = self.migration_database_url or self.database_url
+        if self.app_env.lower() not in _LOCAL_LIKE_ENVIRONMENTS:
+            parsed = urlparse(value)
+            if parsed.scheme != "postgresql+psycopg":
+                raise ValueError("Migration database URL must use postgresql+psycopg://.")
+            if _extract_host(value) in _LOCAL_ONLY_HOSTS:
+                raise ValueError("Migration database URL must not use a local-only host.")
+            query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            if query.get("sslmode", "").lower() not in {"verify-ca", "verify-full"}:
+                raise ValueError("Migration database URL must verify PostgreSQL TLS.")
+        return _normalize_sqlalchemy_database_url(
+            value,
+            require_tls=self.app_env.lower() not in _LOCAL_LIKE_ENVIRONMENTS,
+        )
+
+
+@lru_cache
+def get_migration_settings() -> MigrationSettings:
+    return MigrationSettings()
+
+
 class Settings(BaseSettings):
     app_name: str = Field(default="rooms-marketplace-api", alias="APP_NAME")
     app_env: str = Field(

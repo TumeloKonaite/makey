@@ -7,6 +7,77 @@ locals {
   }) : {}
 }
 
+resource "azurerm_container_app_job" "migrations" {
+  count                        = var.enable_migration_job ? 1 : 0
+  name                         = coalesce(var.migration_job_name, "${var.container_app_name}-migrations")
+  location                     = var.location
+  resource_group_name          = local.resource_group_name
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  replica_retry_limit          = var.migration_job_retry_limit
+  replica_timeout_in_seconds   = var.migration_job_timeout_seconds
+  tags                         = local.common_tags
+
+  dynamic "identity" {
+    for_each = var.use_acr_managed_identity ? [1] : []
+    content { type = "SystemAssigned" }
+  }
+  dynamic "secret" {
+    for_each = var.use_acr_managed_identity ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = azurerm_container_registry.this.admin_password
+    }
+  }
+  dynamic "secret" {
+    for_each = nonsensitive(toset(values(var.migration_secret_environment_variables)))
+    content {
+      name  = secret.value
+      value = var.secrets[secret.value]
+    }
+  }
+  dynamic "registry" {
+    for_each = var.use_acr_managed_identity ? [1] : []
+    content {
+      server   = azurerm_container_registry.this.login_server
+      identity = "System"
+    }
+  }
+  dynamic "registry" {
+    for_each = var.use_acr_managed_identity ? [] : [1]
+    content {
+      server               = azurerm_container_registry.this.login_server
+      username             = azurerm_container_registry.this.admin_username
+      password_secret_name = "registry-password"
+    }
+  }
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+  template {
+    container {
+      name    = "alembic"
+      image   = var.container_image
+      cpu     = var.migration_job_cpu
+      memory  = var.migration_job_memory
+      command = ["alembic"]
+      args    = ["-c", "/app/alembic.ini", "upgrade", "head"]
+      env {
+        name  = "ENVIRONMENT"
+        value = var.environment
+      }
+      dynamic "env" {
+        for_each = var.migration_secret_environment_variables
+        content {
+          name        = env.key
+          secret_name = env.value
+        }
+      }
+    }
+  }
+  depends_on = [azurerm_resource_group.this]
+}
+
 resource "azurerm_resource_group" "this" {
   count = var.create_resource_group ? 1 : 0
 
@@ -191,5 +262,13 @@ resource "azurerm_role_assignment" "container_app_acr_pull" {
   scope                            = azurerm_container_registry.this.id
   role_definition_name             = "AcrPull"
   principal_id                     = data.azurerm_container_app.identity[0].identity[0].principal_id
+  skip_service_principal_aad_check = true
+}
+
+resource "azurerm_role_assignment" "migration_job_acr_pull" {
+  count                            = var.enable_migration_job && var.use_acr_managed_identity ? 1 : 0
+  scope                            = azurerm_container_registry.this.id
+  role_definition_name             = "AcrPull"
+  principal_id                     = azurerm_container_app_job.migrations[0].identity[0].principal_id
   skip_service_principal_aad_check = true
 }

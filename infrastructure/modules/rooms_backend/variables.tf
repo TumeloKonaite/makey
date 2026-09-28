@@ -51,6 +51,50 @@ variable "container_app_name" {
   type        = string
 }
 
+variable "enable_migration_job" {
+  description = "Provision the manually triggered Alembic Container Apps Job."
+  type        = bool
+  default     = false
+}
+variable "migration_job_name" {
+  description = "Name of the manually triggered Alembic migration job."
+  type        = string
+  default     = null
+}
+variable "migration_job_cpu" {
+  type    = number
+  default = 0.5
+}
+variable "migration_job_memory" {
+  type    = string
+  default = "1Gi"
+}
+variable "migration_job_retry_limit" {
+  type    = number
+  default = 1
+  validation {
+    condition     = var.migration_job_retry_limit >= 0 && var.migration_job_retry_limit <= 3
+    error_message = "migration_job_retry_limit must be between 0 and 3."
+  }
+}
+variable "migration_job_timeout_seconds" {
+  type    = number
+  default = 900
+  validation {
+    condition     = var.migration_job_timeout_seconds >= 60 && var.migration_job_timeout_seconds <= 3600
+    error_message = "migration_job_timeout_seconds must be between 60 and 3600."
+  }
+}
+variable "migration_secret_environment_variables" {
+  description = "Migration-only environment variables mapped to keys in secrets."
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for name in values(var.migration_secret_environment_variables) : contains(nonsensitive(keys(var.secrets)), name)])
+    error_message = "Every migration secret reference must name a key in secrets."
+  }
+}
+
 variable "container_image" {
   description = "Fully qualified image reference, including an immutable tag or digest in production."
   type        = string

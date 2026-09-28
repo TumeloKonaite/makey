@@ -216,7 +216,7 @@ psycopg, `/app/alembic.ini`, the migration environment, and every revision.
 Its API entrypoint is overridden by the job with:
 
 ```text
-alembic -c /app/alembic.ini upgrade head && python /app/app/scripts/verify_migration_state.py
+alembic -c /app/alembic.ini upgrade head && python -m app.scripts.verify_migration_state
 ```
 
 Only `DATABASE_URL` is exposed to the job. It references the
@@ -274,7 +274,7 @@ controlled.
    docker run --rm --env-file /secure/path/production-db.env \
      "${IMAGE_SHA}" alembic -c /app/alembic.ini heads
    docker run --rm --env-file /secure/path/production-db.env \
-     "${IMAGE_SHA}" python /app/app/scripts/verify_migration_state.py
+     "${IMAGE_SHA}" python -m app.scripts.verify_migration_state
    ```
 
 6. Deploy the API using the exact same SHA/digest only after step 4

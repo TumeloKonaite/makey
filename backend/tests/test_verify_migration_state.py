@@ -33,3 +33,28 @@ def test_migration_settings_reject_weak_production_tls() -> None:
     import pytest
     with pytest.raises(ValueError, match="verify PostgreSQL TLS"):
         _ = settings.alembic_database_url
+
+
+
+def test_alembic_metadata_import_does_not_initialize_api_settings() -> None:
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from unittest.mock import patch; "
+                "with_patch = patch('app.core.config.get_settings', "
+                "side_effect=AssertionError('full settings initialized')); "
+                "with_patch.start(); "
+                "import app.repository.database.tables.alembic_bootstrap"
+            ),
+        ],
+        cwd=".",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

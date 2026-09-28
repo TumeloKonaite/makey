@@ -16,7 +16,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-compile -r requirements.txt \
+RUN pip install --no-compile --retries 5 --timeout 60 -r requirements.txt \
     && addgroup --system --gid 10001 app \
     && adduser --system --uid 10001 --ingroup app --home /nonexistent --no-create-home app
 

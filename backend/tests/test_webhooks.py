@@ -1,21 +1,19 @@
 import json
-import uuid
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-from svix.webhooks import Webhook
-
 from app.api.routes import webhooks
 from app.core.config import Settings
 from app.main import create_app
 from app.models import User
 from app.repository.database.tables.base_model import Base
 from app.repository.database.tables.session_manager import get_db
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+from svix.webhooks import Webhook
 
 WEBHOOK_SECRET = "whsec_dGVzdHNlY3JldA=="
 
@@ -61,7 +59,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
 
 def signed_headers(body: str) -> dict[str, str]:
     message_id = "msg_test_123"
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(UTC)
     signature = Webhook(WEBHOOK_SECRET).sign(message_id, timestamp, body)
     return {
         "svix-id": message_id,
@@ -84,9 +82,7 @@ def test_new_user_defaults_to_renter(client: TestClient) -> None:
             "first_name": "Jane",
             "last_name": "Renter",
             "primary_email_address_id": "email_1",
-            "email_addresses": [
-                {"id": "email_1", "email_address": "Jane@example.com"}
-            ],
+            "email_addresses": [{"id": "email_1", "email_address": "Jane@example.com"}],
             "public_metadata": {},
         },
     }
@@ -100,9 +96,7 @@ def test_new_user_defaults_to_renter(client: TestClient) -> None:
         assert user.clerk_user_id == "user_new"
         assert user.email == "jane@example.com"
         assert user.role == "renter"
-    assert webhooks.Clerk.users.metadata_updates == [
-        ("user_new", {"role": "renter"})
-    ]
+    assert webhooks.Clerk.users.metadata_updates == [("user_new", {"role": "renter"})]
 
 
 def test_unknown_webhook_role_cannot_promote_user(client: TestClient) -> None:
@@ -111,9 +105,7 @@ def test_unknown_webhook_role_cannot_promote_user(client: TestClient) -> None:
         "data": {
             "id": "user_unknown",
             "primary_email_address_id": "email_1",
-            "email_addresses": [
-                {"id": "email_1", "email_address": "unknown@example.com"}
-            ],
+            "email_addresses": [{"id": "email_1", "email_address": "unknown@example.com"}],
             "public_metadata": {"role": "owner"},
         },
     }

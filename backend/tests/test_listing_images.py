@@ -3,11 +3,6 @@ from collections.abc import Generator
 from decimal import Decimal
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from app.api.routes.listings import listings as listing_routes
 from app.core.auth import get_current_user
 from app.core.config import Settings
@@ -23,6 +18,10 @@ from app.repository.storage.minio_storage import (
     _parse_minio_endpoint,
     _with_path_prefix,
 )
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 category_id = uuid.UUID("3c67a6cc-29c5-4d46-b6f9-262056d9cb70")
 provider_id = uuid.UUID("aaaaaaaa-1111-4111-8111-111111111111")
@@ -291,9 +290,7 @@ def test_admin_can_remove_listing_image(
 
 def test_renter_cannot_remove_listing_image(client: TestClient) -> None:
     override_user("renter-1", "renter")
-    response = client.delete(
-        f"/listings/{listing_id}/images/dddddddd-4444-4444-8444-444444444444"
-    )
+    response = client.delete(f"/listings/{listing_id}/images/dddddddd-4444-4444-8444-444444444444")
     assert response.status_code == 403
 
 

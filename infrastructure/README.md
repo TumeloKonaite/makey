@@ -121,6 +121,22 @@ deployment, rollback, and the linked Key Vault follow-up.
 
 ## What Floci does not prove
 
+Floci execution is intentionally excluded from blocking CI. The blocking CI
+Terraform checks initialize and validate both roots, while the local lifecycle
+below remains an explicit developer/integration check. Running Floci in hosted
+CI would mount the runner's Docker socket, exercise an emulator-specific subset,
+and add substantial startup and provider-download time without validating the
+production trust path.
+
+The optional Floci lifecycle covers resource-group, ACR management-plane,
+Container Apps environment, Container App, ingress, probes, and min/max replica
+configuration in the shared module. It deliberately does not cover the
+production migration job or Log Analytics integration. It is informational,
+not a release gate. A real authenticated Azure plan is still required for RBAC,
+OIDC/AAD, policy, quotas, naming availability, ACR image pulls and managed
+identity, DNS/TLS, networking, PostgreSQL connectivity, Log Analytics, and
+Azure's actual control-plane defaults.
+
 Successful Floci validation does **not** prove an identical Azure deployment.
 It does not validate Azure quotas, RBAC/AAD enforcement, policy, regional
 availability, global naming conflicts, real ACR authentication, managed

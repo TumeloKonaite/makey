@@ -109,13 +109,37 @@ variable "clerk_webhook_secret" {
 }
 
 variable "object_storage_access_key" {
-  description = "Production object-storage access key."
+  description = "HMAC access ID for the production GCS bucket S3-compatible XML API."
   type        = string
   sensitive   = true
 }
 
 variable "object_storage_secret_key" {
-  description = "Production object-storage secret key."
+  description = "HMAC secret for the production GCS bucket S3-compatible XML API."
   type        = string
   sensitive   = true
+}
+
+variable "object_storage_endpoint" {
+  description = "Production GCS S3-compatible XML API endpoint."
+  type        = string
+  default     = "https://storage.googleapis.com"
+}
+
+variable "object_storage_region" {
+  description = "Region of the retained production GCS bucket."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "object_storage_bucket" {
+  description = "Name of the retained production listing-image bucket."
+  type        = string
+  default     = "makey"
+}
+
+variable "object_storage_public_url" {
+  description = "Public base URL used to construct existing listing-image URLs."
+  type        = string
+  default     = "https://storage.googleapis.com"
 }

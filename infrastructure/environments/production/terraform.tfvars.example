@@ -14,12 +14,9 @@ postgresql_resource_group_name = "rg-rooms-marketplace-prod"
 postgresql_server_name         = "rooms-marketplace-postgres"
 postgresql_database_name       = "rooms_marketplace"
 
-# The backend also requires durable, external S3-compatible object storage.
-environment_variables = {
-  OBJECT_STORAGE_ENDPOINT   = "https://replace-with-object-storage-api.example.com"
-  OBJECT_STORAGE_PUBLIC_URL = "https://replace-with-public-object-url.example.com"
-  OBJECT_STORAGE_BUCKET     = "listing-images"
-}
+# The production root defaults to the retained GCS S3-compatible/XML endpoint,
+# us-central1 region, makey bucket, and https://storage.googleapis.com public
+# URL. Do not override those values as part of an Azure deployment.
 
 tags = {
   owner = "tumelo"

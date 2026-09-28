@@ -52,8 +52,11 @@ Environment variables:
 - `POSTGRESQL_RESOURCE_GROUP_NAME`, `POSTGRESQL_SERVER_NAME`,
   `POSTGRESQL_DATABASE_NAME`
 - `TF_STATE_RESOURCE_GROUP`, `TF_STATE_STORAGE_ACCOUNT`
-- `TF_VAR_environment_variables`: a Terraform map expression containing only
-  non-sensitive object-storage endpoint, public URL, bucket, and optional region
+
+The production Terraform root supplies the confirmed non-secret GCS endpoint,
+region, bucket, and public URL directly. Do not duplicate them in
+`TF_VAR_environment_variables`. See the
+[production object-storage runbook](./production-object-storage.md).
 
 Never configure `AZURE_CLIENT_SECRET`, GHCR credentials, ACR admin
 credentials, or secret values as GitHub variables.

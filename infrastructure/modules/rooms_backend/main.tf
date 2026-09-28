@@ -5,6 +5,27 @@ locals {
     environment = var.environment
     managed-by  = "terraform"
   }) : {}
+  acr_pull_identity_id = var.use_acr_managed_identity ? azurerm_user_assigned_identity.acr_pull[0].id : null
+}
+
+resource "azurerm_user_assigned_identity" "acr_pull" {
+  count = var.use_acr_managed_identity ? 1 : 0
+
+  name                = "${substr(var.container_app_name, 0, 24)}-acr"
+  resource_group_name = local.resource_group_name
+  location            = var.location
+  tags                = local.common_tags
+
+  depends_on = [azurerm_resource_group.this]
+}
+
+resource "azurerm_role_assignment" "acr_pull" {
+  count = var.use_acr_managed_identity ? 1 : 0
+
+  scope                            = azurerm_container_registry.this.id
+  role_definition_name             = "AcrPull"
+  principal_id                     = azurerm_user_assigned_identity.acr_pull[0].principal_id
+  skip_service_principal_aad_check = true
 }
 
 resource "azurerm_container_app_job" "migrations" {
@@ -19,7 +40,10 @@ resource "azurerm_container_app_job" "migrations" {
 
   dynamic "identity" {
     for_each = var.use_acr_managed_identity ? [1] : []
-    content { type = "SystemAssigned" }
+    content {
+      type         = "SystemAssigned, UserAssigned"
+      identity_ids = [local.acr_pull_identity_id]
+    }
   }
   dynamic "secret" {
     for_each = var.use_acr_managed_identity ? [] : [1]
@@ -39,7 +63,7 @@ resource "azurerm_container_app_job" "migrations" {
     for_each = var.use_acr_managed_identity ? [1] : []
     content {
       server   = azurerm_container_registry.this.login_server
-      identity = "System"
+      identity = local.acr_pull_identity_id
     }
   }
   dynamic "registry" {
@@ -75,7 +99,7 @@ resource "azurerm_container_app_job" "migrations" {
       }
     }
   }
-  depends_on = [azurerm_resource_group.this]
+  depends_on = [azurerm_resource_group.this, azurerm_role_assignment.acr_pull]
 }
 
 resource "azurerm_resource_group" "this" {
@@ -138,7 +162,10 @@ resource "azurerm_container_app" "this" {
 
   dynamic "identity" {
     for_each = var.use_acr_managed_identity ? [1] : []
-    content { type = "SystemAssigned" }
+    content {
+      type         = "SystemAssigned, UserAssigned"
+      identity_ids = [local.acr_pull_identity_id]
+    }
   }
 
   dynamic "secret" {
@@ -161,7 +188,7 @@ resource "azurerm_container_app" "this" {
     for_each = var.use_acr_managed_identity ? [1] : []
     content {
       server   = azurerm_container_registry.this.login_server
-      identity = "System"
+      identity = local.acr_pull_identity_id
     }
   }
 
@@ -244,31 +271,6 @@ resource "azurerm_container_app" "this" {
       }
     }
   }
-}
 
-data "azurerm_container_app" "identity" {
-  count = var.use_acr_managed_identity ? 1 : 0
-
-  name                = azurerm_container_app.this.name
-  resource_group_name = azurerm_container_app.this.resource_group_name
-
-  # Defer the read until apply when a system-assigned principal exists.
-  depends_on = [azurerm_container_app.this]
-}
-
-resource "azurerm_role_assignment" "container_app_acr_pull" {
-  count = var.use_acr_managed_identity ? 1 : 0
-
-  scope                            = azurerm_container_registry.this.id
-  role_definition_name             = "AcrPull"
-  principal_id                     = data.azurerm_container_app.identity[0].identity[0].principal_id
-  skip_service_principal_aad_check = true
-}
-
-resource "azurerm_role_assignment" "migration_job_acr_pull" {
-  count                            = var.enable_migration_job && var.use_acr_managed_identity ? 1 : 0
-  scope                            = azurerm_container_registry.this.id
-  role_definition_name             = "AcrPull"
-  principal_id                     = azurerm_container_app_job.migrations[0].identity[0].principal_id
-  skip_service_principal_aad_check = true
+  depends_on = [azurerm_role_assignment.acr_pull]
 }

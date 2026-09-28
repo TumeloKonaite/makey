@@ -35,7 +35,7 @@ jobs:
       )
 
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     environment: production
 
@@ -206,30 +206,55 @@ jobs:
             -chdir=infrastructure/environments/production \
             validate
 
+      - name: Provision migration job
+        shell: bash
+        env:
+          TF_VAR_container_image: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tf_dir="infrastructure/environments/production"
+          terraform -chdir="${tf_dir}" plan -input=false \
+            -target='module.rooms_backend.azurerm_user_assigned_identity.acr_pull[0]' \
+            -target='module.rooms_backend.azurerm_role_assignment.acr_pull[0]' \
+            -target='module.rooms_backend.azurerm_container_app_job.migrations[0]' \
+            -out=migration.tfplan
+          terraform -chdir="${tf_dir}" apply -input=false -auto-approve migration.tfplan
+
+      - name: Run and verify database migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          job_name="$(terraform -chdir=infrastructure/environments/production output -raw migration_job_name)"
+          execution_name="$(az containerapp job start --name "${job_name}" --resource-group "${TF_VAR_resource_group_name}" --query name --output tsv)"
+          [[ -n "${execution_name}" ]] || { echo "::error::Azure did not return a migration execution name"; exit 1; }
+
+          for _ in {1..90}; do
+            status="$(az containerapp job execution show \
+              --name "${job_name}" \
+              --resource-group "${TF_VAR_resource_group_name}" \
+              --job-execution-name "${execution_name}" \
+              --query properties.status --output tsv)"
+            case "${status}" in
+              Succeeded) echo "Migration ${execution_name} succeeded"; break ;;
+              Failed|Stopped|Degraded) echo "::error::Migration ${execution_name} ended with ${status}"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          [[ "${status}" == "Succeeded" ]] || { echo "::error::Migration timed out with status ${status}"; exit 1; }
+
       - name: Plan production revision
         shell: bash
         env:
           TF_VAR_container_image: ${{ env.ACR_NAME }}.azurecr.io/${{ env.ACR_REPOSITORY }}:${{ steps.image.outputs.sha }}
         run: |
           set -euo pipefail
-
-          terraform \
-            -chdir=infrastructure/environments/production \
-            plan \
-            -input=false \
-            -out=production.tfplan
+          terraform -chdir=infrastructure/environments/production plan -input=false -out=production.tfplan
 
       - name: Apply production revision
         shell: bash
         run: |
           set -euo pipefail
-
-          terraform \
-            -chdir=infrastructure/environments/production \
-            apply \
-            -input=false \
-            -auto-approve \
-            production.tfplan
+          terraform -chdir=infrastructure/environments/production apply -input=false -auto-approve production.tfplan
 
       - name: Verify identity, image, and deployed revision
         shell: bash
@@ -282,8 +307,8 @@ jobs:
             exit 1
           }
 
-          [[ "${registry_identity,,}" == "system" ]] || {
-            echo "::error::ACR authentication is not configured with the system-assigned identity"
+          [[ "${registry_identity}" == /subscriptions/*/resourceGroups/*/providers/Microsoft.ManagedIdentity/userAssignedIdentities/* ]] || {
+            echo "::error::ACR authentication is not configured with a user-assigned identity"
             exit 1
           }
 
@@ -311,9 +336,17 @@ jobs:
             exit 1
           }
 
+          acr_pull_principal_id="$(
+            az identity show --ids "${registry_identity}" --query principalId --output tsv
+          )"
+          [[ -n "${acr_pull_principal_id}" ]] || {
+            echo "::error::ACR pull identity principal is missing"
+            exit 1
+          }
+
           assignments="$(
             az role assignment list \
-              --assignee-object-id "${principal_id}" \
+              --assignee-object-id "${acr_pull_principal_id}" \
               --all \
               --query '[].{role:roleDefinitionName,scope:scope}' \
               --output json
@@ -373,6 +406,6 @@ jobs:
             echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP }}\`"
             echo "- Health URL: https://${fqdn}/health"
             echo "- Ready URL: https://${fqdn}/ready"
-            echo "- Registry authentication: system-assigned managed identity"
+            echo "- Registry authentication: user-assigned managed identity"
             echo "- ACR role: AcrPull"
           } >> "${GITHUB_STEP_SUMMARY}"

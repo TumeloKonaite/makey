@@ -15,7 +15,7 @@ variable "container_app_environment_name" { type = string }
 variable "container_app_name" { type = string }
 variable "migration_job_name" {
   type    = string
-  default = "ca-rooms-marketplace-migrations-prod"
+  default = "ca-rooms-db-migrate-prod"
 }
 variable "container_image" {
   description = "Production ACR image reference tagged with the full lowercase Git commit SHA."

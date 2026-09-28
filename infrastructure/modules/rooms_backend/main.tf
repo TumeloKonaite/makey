@@ -87,7 +87,7 @@ resource "azurerm_container_app_job" "migrations" {
       command = ["/bin/sh"]
       args = [
         "-c",
-        "alembic -c /app/alembic.ini upgrade head && python /app/app/scripts/verify_migration_state.py",
+        "alembic -c /app/alembic.ini upgrade head && python -m app.scripts.verify_migration_state",
       ]
       env {
         name  = "ENVIRONMENT"

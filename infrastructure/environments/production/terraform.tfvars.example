@@ -6,7 +6,7 @@ container_registry_name        = "strmacr538a26"
 log_analytics_workspace_name   = "log-rooms-marketplace-prod"
 container_app_environment_name = "cae-rooms-marketplace-prod"
 container_app_name             = "ca-rooms-marketplace-api-prod"
-migration_job_name             = "ca-rooms-marketplace-migrations-prod"
+migration_job_name             = "ca-rooms-db-migrate-prod"
 container_image                = "strmacr538a26.azurecr.io/rooms-api:0123456789abcdef0123456789abcdef01234567"
 frontend_origin                = "https://replace-with-production-frontend.example.com"
 

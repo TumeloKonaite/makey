@@ -57,9 +57,17 @@ variable "enable_migration_job" {
   default     = false
 }
 variable "migration_job_name" {
-  description = "Name of the manually triggered Alembic migration job."
+  description = "Name of the manually triggered Alembic migration job (maximum 32 characters)."
   type        = string
   default     = null
+
+  validation {
+    condition = var.migration_job_name == null ? true : (
+      length(var.migration_job_name) <= 32 &&
+      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.migration_job_name))
+    )
+    error_message = "migration_job_name must be at most 32 characters, start with a letter, and contain only lowercase letters, numbers, and hyphens."
+  }
 }
 variable "migration_job_cpu" {
   type    = number

@@ -11,8 +11,12 @@ in its run and confirms Azure Container Apps reports that exact image.
   federated credential subject must be
   `repo:<owner>/<repository>:environment:production`.
 - The publishing principal receives `AcrPush` on this ACR only.
-- The Container App has a system-assigned identity and receives `AcrPull` on
-  this ACR only. ACR admin access is disabled and no registry password is stored.
+- Terraform provisions a dedicated user-assigned managed identity for ACR
+  pulls. The Container App and migration job attach that identity, and it
+  receives `AcrPull` on this ACR only. Their system-assigned identities remain
+  available for workload-specific Azure access but are not used for registry
+  authentication. ACR admin access is disabled and no registry password is
+  stored.
 - Terraform receives application credentials from protected environment secrets,
   stores them as Container App secrets, and maps them to runtime variables by
   secret reference.
@@ -71,12 +75,14 @@ Grant the GitHub deployment principal only:
   group rather than subscription-wide `Contributor`.
 - `Storage Blob Data Contributor` on the private `tfstate` container.
 - During initial identity provisioning only, permission to create the
-  ACR-scoped `AcrPull` assignment. Use a separate bootstrap identity or
+  dedicated user-assigned identity and its ACR-scoped `AcrPull` assignment.
+  Use a separate bootstrap identity or
   temporarily grant `Role Based Access Control Administrator` at ACR scope,
   then remove it after apply.
 
 Do not grant Owner. Audit with `az role assignment list --all --assignee
-<object-id>` and verify the runtime principal has only ACR-scoped `AcrPull`.
+<user-assigned-identity-object-id>` and verify the dedicated ACR pull principal
+has only ACR-scoped `AcrPull`.
 
 ## State and secrets
 

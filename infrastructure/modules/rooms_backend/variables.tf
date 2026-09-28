@@ -25,7 +25,7 @@ variable "container_registry_name" {
 }
 
 variable "use_acr_managed_identity" {
-  description = "Use the Container App system-assigned identity for ACR pulls and disable the ACR admin account. Disable only for local emulators."
+  description = "Provision and attach a dedicated user-assigned identity for ACR pulls and disable the ACR admin account. Disable only for local emulators."
   type        = bool
   default     = true
 }

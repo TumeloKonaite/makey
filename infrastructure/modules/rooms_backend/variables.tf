@@ -62,10 +62,9 @@ variable "migration_job_name" {
   default     = null
 
   validation {
-    condition = (
-      var.migration_job_name == null ||
-      (length(var.migration_job_name) <= 32 &&
-      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.migration_job_name)))
+    condition = var.migration_job_name == null ? true : (
+      length(var.migration_job_name) <= 32 &&
+      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.migration_job_name))
     )
     error_message = "migration_job_name must be at most 32 characters, start with a letter, and contain only lowercase letters, numbers, and hyphens."
   }

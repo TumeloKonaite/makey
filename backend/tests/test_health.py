@@ -215,6 +215,11 @@ def test_s3_access_key_aliases_are_supported(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("MINIO_BUCKET_LISTING_IMAGES", "rooms_marketplace")
     monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_example")
     monkeypatch.setenv("CLERK_WEBHOOK_SIGNING_SECRET", "whsec_example")
+    monkeypatch.setenv(
+        "GEOCODING_BASE_URL",
+        "https://eu1.locationiq.com/v1/search",
+    )
+    monkeypatch.setenv("GEOCODING_API_KEY", "locationiq-test-token")
     get_settings.cache_clear()
     settings = Settings()
 

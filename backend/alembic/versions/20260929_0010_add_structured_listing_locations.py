@@ -17,7 +17,16 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+    # Azure must allow-list PostGIS. Preserve scalar coordinates if extension
+    # installation is unsupported or the migration role lacks permission.
+    op.execute("""
+        DO $$ BEGIN
+            CREATE EXTENSION IF NOT EXISTS postgis;
+        EXCEPTION
+            WHEN insufficient_privilege OR undefined_file THEN
+                RAISE NOTICE 'PostGIS unavailable; using latitude/longitude fallback';
+        END $$
+    """)
     op.add_column("listings", sa.Column("address_line", sa.String(length=255), nullable=True))
     op.add_column("listings", sa.Column("city", sa.String(length=160), nullable=True))
     op.add_column("listings", sa.Column("province", sa.String(length=160), nullable=True))
@@ -37,31 +46,36 @@ def upgrade() -> None:
         "listings",
         "longitude IS NULL OR longitude BETWEEN -180 AND 180",
     )
-    op.execute(
-        """
-        ALTER TABLE listings
-        ADD COLUMN coordinates geography(Point, 4326)
-        GENERATED ALWAYS AS (
-            CASE
-                WHEN latitude IS NOT NULL AND longitude IS NOT NULL
-                THEN ST_SetSRID(
-                    ST_MakePoint(longitude::double precision, latitude::double precision),
-                    4326
-                )::geography
-                ELSE NULL
-            END
-        ) STORED
-        """
-    )
-    op.execute(
-        "CREATE INDEX ix_listings_coordinates_gist "
-        "ON listings USING GIST (coordinates)"
-    )
+    op.execute("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+                EXECUTE $spatial$
+                    ALTER TABLE listings
+                    ADD COLUMN coordinates geography(Point, 4326)
+                    GENERATED ALWAYS AS (
+                        CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+                        THEN ST_SetSRID(ST_MakePoint(
+                            longitude::double precision, latitude::double precision
+                        ), 4326)::geography ELSE NULL END
+                    ) STORED
+                $spatial$;
+                EXECUTE 'CREATE INDEX ix_listings_coordinates_gist '
+                        'ON listings USING GIST (coordinates)';
+            END IF;
+        END $$
+    """)
 
 
 def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS ix_listings_coordinates_gist")
-    op.execute("ALTER TABLE listings DROP COLUMN coordinates")
+    op.execute("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE
+                       table_name = 'listings' AND column_name = 'coordinates') THEN
+                EXECUTE 'ALTER TABLE listings DROP COLUMN coordinates';
+            END IF;
+        END $$
+    """)
     op.drop_constraint("ck_listings_longitude_range", "listings", type_="check")
     op.drop_constraint("ck_listings_latitude_range", "listings", type_="check")
     op.drop_column("listings", "geocoding_place_id")

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.categories import router as categories_router
 from app.api.routes.health import router as health_router
 from app.api.routes.listings import router as listings_router
+from app.api.routes.locations import router as locations_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.core.config import Settings, get_settings
 from app.repository.storage import ensure_listing_images_bucket
@@ -68,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     web_app.include_router(health_router)
     web_app.include_router(categories_router)
     web_app.include_router(listings_router)
+    web_app.include_router(locations_router)
     web_app.include_router(webhooks_router)
     if settings is not None:
         web_app.dependency_overrides[get_settings] = lambda: runtime_settings

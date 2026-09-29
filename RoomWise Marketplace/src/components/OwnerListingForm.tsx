@@ -11,7 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Category, Listing, ListingInput, ListingStatus } from "@/types";
+import { LocationPicker } from "@/components/location/LocationPicker";
+import { LocationPreview } from "@/components/location/LocationPreview";
+import { LocationSearch } from "@/components/location/LocationSearch";
+import type { Category, Listing, ListingInput, ListingStatus, LocationResult } from "@/types";
 
 interface Props {
   categories: Category[];
@@ -45,6 +48,15 @@ export function AdminListingForm({
     parking_available: initial?.parking_available ?? false,
     max_occupants: initial?.max_occupants ?? 1,
     area: initial?.area ?? "",
+    address_line: initial?.address_line ?? "",
+    city: initial?.city ?? "",
+    province: initial?.province ?? "",
+    postal_code: initial?.postal_code ?? "",
+    country_code: initial?.country_code ?? "ZA",
+    latitude: initial?.latitude ?? null,
+    longitude: initial?.longitude ?? null,
+    geocoding_provider: initial?.geocoding_provider ?? null,
+    geocoding_place_id: initial?.geocoding_place_id ?? null,
     currency: initial?.currency || "ZAR",
     location: initial?.location ?? "",
     status: (initial?.status as ListingStatus) || "draft",
@@ -53,6 +65,21 @@ export function AdminListingForm({
   const set = <K extends keyof ListingInput>(k: K, v: ListingInput[K]) =>
     setF((prev) => ({ ...prev, [k]: v }));
 
+  const selectLocation = (result: LocationResult) =>
+    setF((previous) => ({
+      ...previous,
+      address_line: result.address_line ?? "",
+      area: result.area ?? "",
+      city: result.city ?? "",
+      province: result.province ?? "",
+      postal_code: result.postal_code ?? "",
+      country_code: result.country_code ?? "ZA",
+      latitude: result.latitude,
+      longitude: result.longitude,
+      geocoding_provider: result.provider,
+      geocoding_place_id: result.place_id,
+      location: result.city ?? result.display_name,
+    }));
   async function handle(e: React.FormEvent) {
     e.preventDefault();
     // ensure price mirrors rent_amount
@@ -74,10 +101,12 @@ export function AdminListingForm({
 
   return (
     <form onSubmit={handle} className="space-y-6">
+      address_line: f.address_line || null, city: f.city || null, province: f.province || null,
+      postal_code: f.postal_code || null, latitude: f.latitude || null, longitude: f.longitude ||
+      null,
       {errors.form && (
         <p className="text-sm text-destructive bg-destructive/10 rounded p-3">{errors.form}</p>
       )}
-
       <Section title="Basics">
         <Field label="Room title" required error={errors.title}>
           <Input
@@ -112,7 +141,6 @@ export function AdminListingForm({
           </Field>
         </div>
       </Section>
-
       <Section title="Pricing">
         <Field label="Monthly rent (ZAR)" required error={errors.rent_amount || errors.price}>
           <Input
@@ -143,21 +171,40 @@ export function AdminListingForm({
           <Input value={f.currency} onChange={(e) => set("currency", e.target.value)} />
         </Field>
       </Section>
-
       <Section title="Location & availability">
-        <Field label="City" error={errors.location}>
+        <div className="sm:col-span-2 space-y-3">
+          <Field label="Search address, suburb or place" error={errors.location}>
+            <LocationSearch onSelect={selectLocation} />
+          </Field>
+          <LocationPreview value={f} />
+          <LocationPicker
+            value={f}
+            onChange={(patch) => setF((previous) => ({ ...previous, ...patch }))}
+          />
+        </div>
+        <Field label="Address">
           <Input
-            value={f.location || ""}
-            onChange={(e) => set("location", e.target.value)}
-            placeholder="Cape Town"
+            value={f.address_line || ""}
+            onChange={(e) => set("address_line", e.target.value)}
           />
         </Field>
         <Field label="Suburb / area" error={errors.area}>
+          <Input value={f.area || ""} onChange={(e) => set("area", e.target.value)} />
+        </Field>
+        <Field label="City">
           <Input
-            value={f.area || ""}
-            onChange={(e) => set("area", e.target.value)}
-            placeholder="Observatory"
+            value={f.city || ""}
+            onChange={(e) => {
+              set("city", e.target.value);
+              set("location", e.target.value);
+            }}
           />
+        </Field>
+        <Field label="Province">
+          <Input value={f.province || ""} onChange={(e) => set("province", e.target.value)} />
+        </Field>
+        <Field label="Postal code">
+          <Input value={f.postal_code || ""} onChange={(e) => set("postal_code", e.target.value)} />
         </Field>
         <Field label="Available from" error={errors.available_date}>
           <Input
@@ -175,7 +222,6 @@ export function AdminListingForm({
           />
         </Field>
       </Section>
-
       <Section title="Amenities">
         <div className="sm:col-span-2 flex flex-wrap gap-6">
           <Toggle
@@ -195,7 +241,6 @@ export function AdminListingForm({
           />
         </div>
       </Section>
-
       <Section title="Status">
         <Field label="Listing status" error={errors.status}>
           <Select value={f.status} onValueChange={(v) => set("status", v as ListingStatus)}>
@@ -210,7 +255,6 @@ export function AdminListingForm({
           </Select>
         </Field>
       </Section>
-
       <div className="pt-2">
         <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : submitLabel}

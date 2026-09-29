@@ -289,6 +289,15 @@ def test_owner_can_create_listing_with_rental_fields(client: TestClient) -> None
             "parking_available": True,
             "max_occupants": 1,
             "area": "Rondebosch",
+            "address_line": "12 Main Road",
+            "city": "Cape Town",
+            "province": "Western Cape",
+            "postal_code": "7700",
+            "country_code": "ZA",
+            "latitude": "-33.957000",
+            "longitude": "18.470000",
+            "geocoding_provider": "test-provider",
+            "geocoding_place_id": "place-123",
             "currency": "zar",
             "location": "Cape Town",
             "status": "published",
@@ -310,7 +319,20 @@ def test_owner_can_create_listing_with_rental_fields(client: TestClient) -> None
     assert body["parking_available"] is True
     assert body["max_occupants"] == 1
     assert body["area"] == "Rondebosch"
+    assert body["address_line"] == "12 Main Road"
+    assert body["city"] == "Cape Town"
+    assert body["province"] == "Western Cape"
+    assert body["postal_code"] == "7700"
+    assert body["country_code"] == "ZA"
+    assert body["latitude"] == "-33.957000"
+    assert body["longitude"] == "18.470000"
+    assert body["geocoding_provider"] == "test-provider"
+    assert body["geocoding_place_id"] == "place-123"
     assert body["currency"] == "ZAR"
+
+    persisted_response = client.get(f"/listings/{body['id']}")
+    assert persisted_response.status_code == 200
+    assert persisted_response.json()["latitude"] == "-33.957000"
 
 
 def test_renter_cannot_create_listing(client: TestClient) -> None:
@@ -365,3 +387,40 @@ def test_non_owner_cannot_delete_another_listing(client: TestClient) -> None:
 
     detail_response = client.get(f"/listings/{published_listing_id}")
     assert detail_response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("latitude", "-90.000001"),
+        ("latitude", "90.000001"),
+        ("longitude", "-180.000001"),
+        ("longitude", "180.000001"),
+    ],
+)
+def test_listing_rejects_coordinates_outside_valid_ranges(
+    client: TestClient, field: str, value: str
+) -> None:
+    override_user("admin-1", "admin")
+    payload = {
+        "category_id": str(category_id),
+        "title": f"Invalid {field} listing",
+        "price": "100.00",
+        field: value,
+    }
+
+    response = client.post("/listings", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_legacy_listing_without_coordinates_remains_available(
+    client: TestClient,
+) -> None:
+    response = client.get(f"/listings/{published_listing_id}")
+
+    assert response.status_code == 200
+    assert response.json()["location"] == "Cape Town"
+    assert response.json()["area"] == "Observatory"
+    assert response.json()["latitude"] is None
+    assert response.json()["longitude"] is None

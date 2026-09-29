@@ -16,6 +16,14 @@ class Listing(Base):
             "status IN ('draft', 'published', 'archived')",
             name="ck_listings_status",
         ),
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90",
+            name="ck_listings_latitude_range",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180",
+            name="ck_listings_longitude_range",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -48,6 +56,15 @@ class Listing(Base):
     parking_available: Mapped[bool | None] = mapped_column(nullable=True)
     max_occupants: Mapped[int | None] = mapped_column(nullable=True)
     area: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    address_line: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    province: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
+    geocoding_provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    geocoding_place_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     currency: Mapped[str] = mapped_column(
         String(3),
         nullable=False,

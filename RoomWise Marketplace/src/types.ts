@@ -38,6 +38,8 @@ export interface Listing {
   area?: string | null;
   currency: string;
   location?: string | null;
+  contact_phone?: string | null;
+  is_verified?: boolean;
   status: ListingStatus;
   images: ListingImage[];
 }

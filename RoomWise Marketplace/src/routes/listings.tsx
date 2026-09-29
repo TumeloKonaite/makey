@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { ListingCard } from "@/components/ListingCard";
+import { QuickFilters, type FilterState } from "@/components/QuickFilters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,6 +54,13 @@ function ListingsPage() {
   const [agentFee, setAgentFee] = useState<string>("any");
   const [sort, setSort] = useState<string>("newest");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [quickFilters, setQuickFilters] = useState<FilterState>({
+    category: "",
+    priceRange: "",
+    noDepositOnly: false,
+    waterAndLights: false,
+    parking: false,
+  });
 
   const listings = listingsQ.data ?? [];
   const categories = catsQ.data ?? [];
@@ -105,6 +113,28 @@ function ListingsPage() {
     }
     if (agentFee === "none") out = out.filter((l) => !l.agent_fee || Number(l.agent_fee) === 0);
     if (agentFee === "has") out = out.filter((l) => l.agent_fee && Number(l.agent_fee) > 0);
+    if (quickFilters.category) {
+      out = out.filter((l) => {
+        const listingCategory = categories.find((c) => c.id === l.category_id);
+        return (
+          l.category_id === quickFilters.category || listingCategory?.slug === quickFilters.category
+        );
+      });
+    }
+    if (quickFilters.priceRange) {
+      out = out.filter((l) => {
+        const rent = Number(l.rent_amount);
+        if (quickFilters.priceRange === "under-1500") return rent < 1500;
+        if (quickFilters.priceRange === "1500-2500") return rent >= 1500 && rent <= 2500;
+        if (quickFilters.priceRange === "above-2500") return rent > 2500;
+        return true;
+      });
+    }
+    if (quickFilters.noDepositOnly) {
+      out = out.filter((l) => !l.deposit_amount || Number(l.deposit_amount) === 0);
+    }
+    if (quickFilters.waterAndLights) out = out.filter((l) => l.utilities_included);
+    if (quickFilters.parking) out = out.filter((l) => l.parking_available);
 
     switch (sort) {
       case "price-asc":
@@ -137,6 +167,8 @@ function ListingsPage() {
     availableBy,
     agentFee,
     sort,
+    quickFilters,
+    categories,
   ]);
 
   function reset() {
@@ -151,6 +183,13 @@ function ListingsPage() {
     setAvailableBy("");
     setAgentFee("any");
     setSort("newest");
+    setQuickFilters({
+      category: "",
+      priceRange: "",
+      noDepositOnly: false,
+      waterAndLights: false,
+      parking: false,
+    });
   }
 
   return (
@@ -331,6 +370,8 @@ function ListingsPage() {
           </aside>
 
           <section>
+            <QuickFilters filters={quickFilters} onChange={setQuickFilters} />
+
             {listingsQ.isLoading && (
               <div className="grid gap-6 sm:grid-cols-2">
                 {Array.from({ length: 4 }).map((_, i) => (

@@ -272,6 +272,7 @@ jobs:
           terraform -chdir="${tf_dir}" plan -input=false \
             -target='module.rooms_backend.azurerm_user_assigned_identity.acr_pull[0]' \
             -target='module.rooms_backend.azurerm_role_assignment.acr_pull[0]' \
+            -target='azurerm_postgresql_flexible_server_configuration.postgis' \
             -target='module.rooms_backend.azurerm_container_app_job.migrations[0]' \
             -out=migration.tfplan
           terraform -chdir="${tf_dir}" apply -input=false -auto-approve migration.tfplan

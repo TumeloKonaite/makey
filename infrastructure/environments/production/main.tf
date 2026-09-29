@@ -3,6 +3,14 @@ data "azurerm_postgresql_flexible_server" "existing" {
   resource_group_name = var.postgresql_resource_group_name
 }
 
+# Azure Flexible Server requires extensions to be allow-listed before a database
+# user can install them with CREATE EXTENSION.
+resource "azurerm_postgresql_flexible_server_configuration" "postgis" {
+  name      = "azure.extensions"
+  server_id = data.azurerm_postgresql_flexible_server.existing.id
+  value     = "postgis"
+}
+
 # Temporary public-network exception. Azure interprets 0.0.0.0-0.0.0.0
 # as "Allow public access from any Azure service within Azure".
 resource "azurerm_postgresql_flexible_server_firewall_rule" "temporary_azure_services" {

@@ -20,6 +20,7 @@ from app.api.routes.listings.schemas import (
     ListingRead,
     ListingSearchParams,
     ListingUpdate,
+    public_listing_read,
 )
 from app.core.auth import require_role
 from app.core.security import CurrentUser
@@ -35,8 +36,8 @@ router = APIRouter()
 def list_listings(
     filters: Annotated[ListingSearchParams, Query()],
     db: Session = Depends(get_db),
-) -> list[Listing]:
-    return service.list_listings(db, filters)
+) -> list[ListingRead]:
+    return [public_listing_read(listing) for listing in service.list_listings(db, filters)]
 
 
 @router.get(
@@ -53,8 +54,8 @@ def list_my_listings(
 
 
 @router.get("/listings/{listing_id}", response_model=ListingRead, tags=["listings"])
-def get_listing(listing_id: uuid.UUID, db: Session = Depends(get_db)) -> Listing:
-    return service.get_listing(db, listing_id)
+def get_listing(listing_id: uuid.UUID, db: Session = Depends(get_db)) -> ListingRead:
+    return public_listing_read(service.get_listing(db, listing_id))
 
 
 @router.get(

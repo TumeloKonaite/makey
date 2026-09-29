@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
@@ -17,16 +17,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { getCategories, getListings } from "@/lib/api";
 import type { ListingSearchParams, MapBounds } from "@/types";
-import { listingQueryKey, scheduleViewportSearch } from "@/lib/listing-search";
-
-type SearchState = { category?: string; city?: string };
+import {
+  boundsFromSearch,
+  boundsMeaningfullyChanged,
+  listingQueryKey,
+  parseListingsSearch,
+  type ListingsUrlState,
+} from "@/lib/listing-search";
+import type { MapViewport } from "@/components/map/ListingsMap";
 
 export const Route = createFileRoute("/listings")({
   ssr: false,
-  validateSearch: (s: Record<string, unknown>): SearchState => ({
-    category: typeof s.category === "string" ? s.category : undefined,
-    city: typeof s.city === "string" ? s.city : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): ListingsUrlState =>
+    parseListingsSearch(search),
   head: () => ({
     meta: [
       { title: "Rooms to rent — Marketplace Rooms" },
@@ -41,21 +44,22 @@ export const Route = createFileRoute("/listings")({
 
 function ListingsPage() {
   const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/listings" });
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: getCategories });
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(search.q ?? "");
   const [category, setCategory] = useState<string>(search.category || "all");
   const [city, setCity] = useState<string>(search.city || "all");
-  const [area, setArea] = useState<string>("all");
-  const [minRent, setMinRent] = useState("");
-  const [maxRent, setMaxRent] = useState("");
-  const [furnished, setFurnished] = useState<string>("any");
-  const [availability, setAvailability] = useState<string>("any");
-  const [availableBy, setAvailableBy] = useState("");
-  const [agentFee, setAgentFee] = useState<string>("any");
-  const [sort, setSort] = useState<string>("newest");
+  const [area, setArea] = useState<string>(search.area || "all");
+  const [minRent, setMinRent] = useState(search.minRent?.toString() ?? "");
+  const [maxRent, setMaxRent] = useState(search.maxRent?.toString() ?? "");
+  const [furnished, setFurnished] = useState<string>(search.furnished ?? "any");
+  const [availability, setAvailability] = useState<string>(search.availability ?? "any");
+  const [availableBy, setAvailableBy] = useState(search.availableBy ?? "");
+  const [agentFee, setAgentFee] = useState<string>(search.agentFee ?? "any");
+  const [sort, setSort] = useState<string>(search.sort ?? "newest");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  const [mobileView, setMobileView] = useState<"list" | "map">(search.view ?? "list");
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [quickFilters, setQuickFilters] = useState<FilterState>({
     category: "",
@@ -64,9 +68,9 @@ function ListingsPage() {
     waterAndLights: false,
     parking: false,
   });
-  const [pendingBounds, setPendingBounds] = useState<MapBounds>();
-  const [mapBounds, setMapBounds] = useState<MapBounds>();
-  useEffect(() => scheduleViewportSearch(setMapBounds, pendingBounds), [pendingBounds]);
+  const [mapBounds, setMapBounds] = useState<MapBounds | undefined>(() => boundsFromSearch(search));
+  const [pendingViewport, setPendingViewport] = useState<MapViewport>();
+  const [highlightedListingId, setHighlightedListingId] = useState<string | null>(null);
 
   const categories = useMemo(() => catsQ.data ?? [], [catsQ.data]);
   const filters = useMemo<ListingSearchParams>(() => {
@@ -120,11 +124,72 @@ function ListingsPage() {
     mapBounds,
   ]);
   const listingsQ = useQuery({
-    queryKey: listingQueryKey(filters, mapBounds),
+    queryKey: listingQueryKey(filters),
     queryFn: ({ signal }) => getListings(filters, signal),
     placeholderData: (previous) => previous,
   });
   const listings = useMemo(() => listingsQ.data ?? [], [listingsQ.data]);
+  useEffect(() => {
+    if (selectedListingId && !listings.some((listing) => listing.id === selectedListingId))
+      setSelectedListingId(null);
+  }, [listings, selectedListingId]);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () =>
+        void navigate({
+          replace: true,
+          search: () => ({
+            q: q.trim() || undefined,
+            category: category === "all" ? undefined : category,
+            city: city === "all" ? undefined : city,
+            area: area === "all" ? undefined : area,
+            minRent: minRent ? Number(minRent) : undefined,
+            maxRent: maxRent ? Number(maxRent) : undefined,
+            furnished: furnished === "any" ? undefined : (furnished as "yes" | "no"),
+            availability: availability === "any" ? undefined : (availability as "now" | "by"),
+            availableBy: availability === "by" ? availableBy || undefined : undefined,
+            agentFee: agentFee === "any" ? undefined : (agentFee as "none" | "has"),
+            sort: sort === "newest" ? undefined : (sort as ListingsUrlState["sort"]),
+            view: mobileView === "list" ? undefined : mobileView,
+            lat: pendingViewport ? Number(pendingViewport.center[1].toFixed(5)) : search.lat,
+            lng: pendingViewport ? Number(pendingViewport.center[0].toFixed(5)) : search.lng,
+            zoom: pendingViewport ? Number(pendingViewport.zoom.toFixed(2)) : search.zoom,
+            ...mapBounds,
+          }),
+        }),
+      200,
+    );
+    return () => window.clearTimeout(timer);
+  }, [
+    q,
+    category,
+    city,
+    area,
+    minRent,
+    maxRent,
+    furnished,
+    availability,
+    availableBy,
+    agentFee,
+    sort,
+    mobileView,
+    mapBounds,
+    navigate,
+    pendingViewport,
+    search.lat,
+    search.lng,
+    search.zoom,
+  ]);
+  const searchThisArea = useCallback(() => {
+    if (!pendingViewport) return;
+    setMapBounds(pendingViewport.bounds);
+    window.dispatchEvent(
+      new CustomEvent("roomwise:analytics", { detail: { event: "search_this_area" } }),
+    );
+  }, [pendingViewport]);
+  const showSearchArea = Boolean(
+    pendingViewport && boundsMeaningfullyChanged(mapBounds, pendingViewport.bounds),
+  );
   const catName = (id: string) => categories.find((c) => c.id === id)?.name;
 
   const cities = useMemo(
@@ -462,8 +527,9 @@ function ListingsPage() {
                       <div
                         key={l.id}
                         data-listing-id={l.id}
-                        onMouseEnter={() => setSelectedListingId(l.id)}
-                        onFocus={() => setSelectedListingId(l.id)}
+                        onMouseEnter={() => setHighlightedListingId(l.id)}
+                        onMouseLeave={() => setHighlightedListingId(null)}
+                        onFocus={() => setHighlightedListingId(l.id)}
                         className={`rounded-2xl transition-shadow ${selectedListingId === l.id ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                       >
                         <ListingCard listing={l} categoryName={catName(l.category_id)} />
@@ -475,13 +541,41 @@ function ListingsPage() {
               <aside
                 className={`${mobileView === "map" ? "block" : "hidden"} lg:block lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)]`}
               >
-                <ListingsMap
-                  listings={filtered}
-                  selectedListingId={selectedListingId}
-                  onListingSelect={selectListing}
-                  onBoundsChange={setPendingBounds}
-                  className="h-[65vh] min-h-[420px] lg:h-full"
-                />
+                <div className="relative h-full">
+                  <ListingsMap
+                    listings={filtered}
+                    selectedListingId={selectedListingId}
+                    highlightedListingId={highlightedListingId}
+                    onListingSelect={selectListing}
+                    onViewportChange={setPendingViewport}
+                    initialCenter={
+                      search.lng !== undefined && search.lat !== undefined
+                        ? [search.lng, search.lat]
+                        : undefined
+                    }
+                    initialZoom={search.zoom}
+                    className="h-[calc(100dvh-10rem)] min-h-[420px] lg:h-full"
+                  />
+                  {showSearchArea && (
+                    <Button
+                      type="button"
+                      className="absolute left-1/2 top-4 z-10 -translate-x-1/2 shadow-lg"
+                      onClick={searchThisArea}
+                    >
+                      Search this area
+                    </Button>
+                  )}
+                  {mobileView === "map" && selectedListingId && (
+                    <div className="absolute bottom-10 left-3 right-3 z-10 rounded-xl border bg-background p-3 shadow-xl lg:hidden">
+                      <p className="font-semibold">
+                        {filtered.find((item) => item.id === selectedListingId)?.title}
+                      </p>
+                      <Button variant="link" className="px-0" asChild>
+                        <a href={`/listings/${selectedListingId}`}>View listing</a>
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </aside>
             </div>
           </section>

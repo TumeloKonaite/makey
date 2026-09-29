@@ -24,3 +24,8 @@ The browser calls `/locations/search` only and never receives either value.
 The backend restricts requests to South Africa, applies a timeout, normalizes
 provider responses, and uses a bounded in-process TTL cache. A shared external
 cache can later replace the service cache without changing the API or UI.
+
+
+## Public map privacy
+
+Owner-entered coordinates and address metadata are retained exactly for authenticated owner workflows and geographic database queries. Anonymous `/listings` and `/listings/{id}` responses never return the street address or geocoder place identifier. Their map point is deterministically displaced by approximately 120–350 metres using the listing ID, so it remains stable across refreshes without identifying the residence. The deliberately small radius normally keeps the point in the same suburb/city; locality labels are never altered. Public payloads mark the coordinate provider as `approximate`.

@@ -1,3 +1,5 @@
+import hashlib
+import math
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -193,3 +195,19 @@ class ListingRead(BaseModel):
     @property
     def owner_name(self) -> str | None:
         return self.provider_name
+
+
+PUBLIC_LOCATION_MAX_OFFSET_DEGREES = 0.003
+
+def public_listing_read(listing: object) -> ListingRead:
+    """Return a stable, approximate public point while preserving exact owner data."""
+    result = ListingRead.model_validate(listing)
+    if result.latitude is None or result.longitude is None:
+        return result.model_copy(update={"address_line": None, "geocoding_place_id": None})
+    digest = hashlib.sha256(result.id.bytes + b"roomwise-public-location-v1").digest()
+    angle = int.from_bytes(digest[:4], "big") / (2**32) * math.tau
+    radius = (0.35 + int.from_bytes(digest[4:8], "big") / (2**32) * 0.65) * PUBLIC_LOCATION_MAX_OFFSET_DEGREES
+    latitude = float(result.latitude) + math.sin(angle) * radius
+    longitude_scale = max(math.cos(math.radians(float(result.latitude))), 0.25)
+    longitude = float(result.longitude) + math.cos(angle) * radius / longitude_scale
+    return result.model_copy(update={"latitude": Decimal(f"{latitude:.6f}"), "longitude": Decimal(f"{longitude:.6f}"), "address_line": None, "geocoding_provider": "approximate", "geocoding_place_id": None})

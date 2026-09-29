@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.categories import router as categories_router
 from app.api.routes.health import router as health_router
 from app.api.routes.listings import router as listings_router
-from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.locations import router as locations_router
+from app.api.routes.webhooks import router as webhooks_router
 from app.core.config import Settings, get_settings
 from app.repository.storage import ensure_listing_images_bucket
 

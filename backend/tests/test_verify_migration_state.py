@@ -66,9 +66,7 @@ class MigrationRecorder:
     def add_column(self, table: str, column: object) -> None:
         self.calls.append(("add_column", (table, column.name)))
 
-    def create_check_constraint(
-        self, name: str, table: str, condition: str
-    ) -> None:
+    def create_check_constraint(self, name: str, table: str, condition: str) -> None:
         self.calls.append(("create_check_constraint", (name, table, condition)))
 
     def drop_constraint(self, name: str, table: str, **kwargs: str) -> None:
@@ -102,12 +100,8 @@ def test_location_migration_upgrade_and_downgrade_operations() -> None:
 
     migration.upgrade()
 
-    upgrade_sql = " ".join(
-        call[1] for call in recorder.calls if call[0] == "execute"
-    )
-    added_columns = {
-        call[1][1] for call in recorder.calls if call[0] == "add_column"
-    }
+    upgrade_sql = " ".join(call[1] for call in recorder.calls if call[0] == "execute")
+    added_columns = {call[1][1] for call in recorder.calls if call[0] == "add_column"}
     assert "CREATE EXTENSION IF NOT EXISTS postgis" in upgrade_sql
     assert "geography(Point, 4326)" in upgrade_sql
     assert "USING GIST (coordinates)" in upgrade_sql
@@ -126,12 +120,8 @@ def test_location_migration_upgrade_and_downgrade_operations() -> None:
     recorder.calls.clear()
     migration.downgrade()
 
-    downgrade_sql = " ".join(
-        call[1] for call in recorder.calls if call[0] == "execute"
-    )
-    dropped_columns = {
-        call[1][1] for call in recorder.calls if call[0] == "drop_column"
-    }
+    downgrade_sql = " ".join(call[1] for call in recorder.calls if call[0] == "execute")
+    dropped_columns = {call[1][1] for call in recorder.calls if call[0] == "drop_column"}
     assert "DROP INDEX IF EXISTS ix_listings_coordinates_gist" in downgrade_sql
     assert "DROP COLUMN coordinates" in downgrade_sql
     assert dropped_columns == added_columns

@@ -3,9 +3,10 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.routes.listings.schemas import ListingSearchParams
 from app.core.security import CurrentUser
 from app.models import Category, Listing, ListingImage, User
 
@@ -38,16 +39,75 @@ def get_category(db: Session, category_id: uuid.UUID) -> Category:
 # Listing queries
 
 
-def list_listings(db: Session) -> list[Listing]:
-    """Return the newest published listings with their related data."""
-    return list(
-        db.scalars(
-            select(Listing)
-            .options(selectinload(Listing.images), selectinload(Listing.provider))
-            .where(Listing.status == PUBLISHED_LISTING_STATUS)
-            .order_by(Listing.created_at.desc())
-        ).all()
+def list_listings(db: Session, filters: ListingSearchParams | None = None) -> list[Listing]:
+    """Return published listings matching filters composed in the database query."""
+    filters = filters or ListingSearchParams()
+    query = (
+        select(Listing)
+        .options(selectinload(Listing.images), selectinload(Listing.provider))
+        .where(Listing.status == PUBLISHED_LISTING_STATUS)
     )
+    if filters.q:
+        pattern = f"%{filters.q.strip()}%"
+        query = query.where(
+            or_(
+                Listing.title.ilike(pattern),
+                Listing.description.ilike(pattern),
+                Listing.area.ilike(pattern),
+                Listing.city.ilike(pattern),
+                Listing.location.ilike(pattern),
+            )
+        )
+    if filters.category_id is not None:
+        query = query.where(Listing.category_id == filters.category_id)
+    if filters.city:
+        city = filters.city.strip().lower()
+        query = query.where(
+            or_(func.lower(Listing.city) == city, func.lower(Listing.location) == city)
+        )
+    if filters.area:
+        query = query.where(func.lower(Listing.area) == filters.area.strip().lower())
+    if filters.min_rent is not None:
+        query = query.where(Listing.rent_amount >= filters.min_rent)
+    if filters.max_rent is not None:
+        query = query.where(Listing.rent_amount <= filters.max_rent)
+    if filters.furnished is not None:
+        query = query.where(Listing.is_furnished.is_(filters.furnished))
+    if filters.available_by is not None:
+        query = query.where(Listing.available_date <= filters.available_by)
+    if filters.agent_fee == "none":
+        query = query.where(or_(Listing.agent_fee.is_(None), Listing.agent_fee == 0))
+    elif filters.agent_fee == "has":
+        query = query.where(Listing.agent_fee > 0)
+    if filters.no_deposit:
+        query = query.where(or_(Listing.deposit_amount.is_(None), Listing.deposit_amount == 0))
+    if filters.utilities_included is not None:
+        query = query.where(Listing.utilities_included.is_(filters.utilities_included))
+    if filters.parking_available is not None:
+        query = query.where(Listing.parking_available.is_(filters.parking_available))
+    if filters.has_bounds:
+        bounds = {
+            "south": filters.south,
+            "west": filters.west,
+            "north": filters.north,
+            "east": filters.east,
+        }
+        if db.bind is not None and db.bind.dialect.name == "postgresql":
+            query = query.where(
+                text(
+                    "coordinates && ST_MakeEnvelope(:west, :south, :east, :north, 4326)::geography AND ST_Intersects(coordinates, ST_MakeEnvelope(:west, :south, :east, :north, 4326)::geography)"
+                ).bindparams(**bounds)
+            )
+        else:
+            query = query.where(
+                Listing.latitude.is_not(None),
+                Listing.longitude.is_not(None),
+                Listing.latitude >= filters.south,
+                Listing.latitude <= filters.north,
+                Listing.longitude >= filters.west,
+                Listing.longitude <= filters.east,
+            )
+    return list(db.scalars(query.order_by(Listing.created_at.desc())).all())
 
 
 def list_my_listings(db: Session, current_user: CurrentUser) -> list[Listing]:

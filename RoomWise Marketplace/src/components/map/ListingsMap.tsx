@@ -2,7 +2,7 @@ import { createRoot, type Root } from "react-dom/client";
 import * as maplibregl from "maplibre-gl";
 import { LngLatBounds, type Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef } from "react";
-import type { Listing } from "@/types";
+import type { Listing, MapBounds } from "@/types";
 import { MAP_STYLE_URL } from "@/lib/env";
 import { ListingMapPopup } from "./ListingMapPopup";
 import { ListingPriceMarker } from "./ListingPriceMarker";
@@ -12,6 +12,7 @@ interface Props {
   listings: Listing[];
   selectedListingId?: string | null;
   onListingSelect?: (id: string) => void;
+  onBoundsChange?: (bounds: MapBounds) => void;
   className?: string;
   styleUrl?: string;
 }
@@ -27,21 +28,23 @@ export function ListingsMap({
   listings,
   selectedListingId,
   onListingSelect,
+  onBoundsChange,
   className = "",
   styleUrl = MAP_STYLE_URL,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<RenderedMarker[]>([]);
+  const initialViewportSetRef = useRef(false);
   const mappable = useMemo(() => getMappableListings(listings), [listings]);
 
   useEffect(() => {
-    if (!containerRef.current || mappable.length === 0) return;
+    if (!containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: styleUrl,
-      center: [mappable[0].longitude, mappable[0].latitude],
-      zoom: 11,
+      center: mappable[0] ? [mappable[0].longitude, mappable[0].latitude] : [24, -29],
+      zoom: mappable[0] ? 11 : 5,
       attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -53,12 +56,24 @@ export function ListingsMap({
       }),
     );
     mapRef.current = map;
+    const reportBounds = () => {
+      const bounds = map.getBounds();
+      onBoundsChange?.({
+        south: bounds.getSouth(),
+        west: bounds.getWest(),
+        north: bounds.getNorth(),
+        east: bounds.getEast(),
+      });
+    };
+    map.on("moveend", reportBounds);
     return () => {
+      map.off("moveend", reportBounds);
       mapRef.current = null;
+      initialViewportSetRef.current = false;
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [styleUrl, mappable.length === 0]);
+  }, [styleUrl, onBoundsChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -94,12 +109,14 @@ export function ListingsMap({
       markerNode.addEventListener("focus", select);
       return { id: listing.id, rent: listing.rent_amount, marker, markerRoot, popupRoot };
     });
-    if (mappable.length === 1) {
+    if (!initialViewportSetRef.current && mappable.length === 1) {
       map.easeTo({ center: [mappable[0].longitude, mappable[0].latitude], zoom: 13 });
-    } else if (mappable.length > 1) {
+      initialViewportSetRef.current = true;
+    } else if (!initialViewportSetRef.current && mappable.length > 1) {
       const bounds = new LngLatBounds();
       mappable.forEach(({ longitude, latitude }) => bounds.extend([longitude, latitude]));
       map.fitBounds(bounds, { padding: 52, maxZoom: 14, duration: 0 });
+      initialViewportSetRef.current = true;
     }
     return () => {
       for (const rendered of markersRef.current) {
@@ -119,19 +136,6 @@ export function ListingsMap({
     }
   }, [selectedListingId]);
 
-  if (mappable.length === 0)
-    return (
-      <div
-        className={`grid place-items-center rounded-2xl border border-dashed bg-muted/30 p-8 text-center ${className}`}
-      >
-        <div>
-          <p className="font-serif text-xl">No map locations to show</p>
-          <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-            These rooms do not have usable coordinates yet. You can still browse them in the list.
-          </p>
-        </div>
-      </div>
-    );
   return (
     <div
       className={`relative overflow-hidden rounded-2xl border border-border bg-muted ${className}`}

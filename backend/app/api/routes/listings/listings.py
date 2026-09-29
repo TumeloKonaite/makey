@@ -1,4 +1,5 @@
 import uuid
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -6,6 +7,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Response,
     UploadFile,
     status,
@@ -16,6 +18,7 @@ from app.api.routes.listings.schemas import (
     ListingCreate,
     ListingImageRead,
     ListingRead,
+    ListingSearchParams,
     ListingUpdate,
 )
 from app.core.auth import require_role
@@ -29,8 +32,11 @@ router = APIRouter()
 
 
 @router.get("/listings", response_model=list[ListingRead], tags=["listings"])
-def list_listings(db: Session = Depends(get_db)) -> list[Listing]:
-    return service.list_listings(db)
+def list_listings(
+    filters: Annotated[ListingSearchParams, Query()],
+    db: Session = Depends(get_db),
+) -> list[Listing]:
+    return service.list_listings(db, filters)
 
 
 @router.get(

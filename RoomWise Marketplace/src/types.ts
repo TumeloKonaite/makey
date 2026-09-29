@@ -53,6 +53,28 @@ export interface Listing {
   images: ListingImage[];
 }
 
+export interface MapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+export interface ListingSearchParams extends Partial<MapBounds> {
+  q?: string;
+  categoryId?: string;
+  city?: string;
+  area?: string;
+  minRent?: number;
+  maxRent?: number;
+  furnished?: boolean;
+  availableBy?: string;
+  agentFee?: "none" | "has";
+  noDeposit?: boolean;
+  utilitiesIncluded?: boolean;
+  parkingAvailable?: boolean;
+}
+
 export interface ListingInput {
   category_id: string;
   title: string;

@@ -33,7 +33,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const listingsQ = useQuery({ queryKey: ["listings"], queryFn: getListings });
+  const listingsQ = useQuery({ queryKey: ["listings"], queryFn: () => getListings() });
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: getCategories });
 
   const categories = catsQ.data ?? [];

@@ -108,6 +108,28 @@ variable "clerk_webhook_secret" {
   sensitive   = true
 }
 
+variable "geocoding_base_url" {
+  description = "LocationIQ forward-geocoding endpoint."
+  type        = string
+  default     = "https://eu1.locationiq.com/v1/search"
+
+  validation {
+    condition     = startswith(var.geocoding_base_url, "https://")
+    error_message = "geocoding_base_url must use HTTPS."
+  }
+}
+
+variable "geocoding_api_key" {
+  description = "Production LocationIQ access token."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(trimspace(var.geocoding_api_key)) > 0
+    error_message = "geocoding_api_key must not be empty."
+  }
+}
+
 variable "object_storage_access_key" {
   description = "HMAC access ID for the production GCS bucket S3-compatible XML API."
   type        = string

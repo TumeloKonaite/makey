@@ -9,6 +9,9 @@ container_app_name             = "ca-rooms-marketplace-api-prod"
 migration_job_name             = "ca-rooms-db-migrate-prod"
 container_image                = "strmacr538a26.azurecr.io/rooms-api:0123456789abcdef0123456789abcdef01234567"
 frontend_origin                = "https://replace-with-production-frontend.example.com"
+# LocationIQ EU is the selected production geocoder. Override only with a
+# compatible contracted endpoint; provide its token via TF_VAR_geocoding_api_key.
+geocoding_base_url             = "https://eu1.locationiq.com/v1/search"
 
 postgresql_resource_group_name = "rg-rooms-marketplace-prod"
 postgresql_server_name         = "rooms-marketplace-postgres"

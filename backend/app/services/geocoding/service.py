@@ -30,9 +30,9 @@ class GeocodingProvider(Protocol):
 
 
 class HttpJsonGeocodingProvider:
-    """Configurable JSON geocoder. No public provider URL is embedded."""
+    """LocationIQ-compatible JSON geocoder. No public provider URL is embedded."""
 
-    name = "http-json"
+    name = "locationiq"
 
     def __init__(self, base_url: str | None, timeout: float, api_key: str | None = None):
         self.base_url, self.timeout, self.api_key = (base_url or "").strip(), timeout, api_key
@@ -44,12 +44,13 @@ class HttpJsonGeocodingProvider:
             "q": query,
             "limit": limit,
             "countrycodes": country_code.lower(),
-            "format": "jsonv2",
+            "format": "json",
             "addressdetails": 1,
+            "normalizeaddress": 1,
         }
         headers = {"Accept": "application/json", "User-Agent": "RoomWise/1.0"}
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            params["key"] = self.api_key
         separator = "&" if "?" in self.base_url else "?"
         try:
             request = Request(f"{self.base_url}{separator}{urlencode(params)}", headers=headers)

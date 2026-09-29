@@ -67,6 +67,8 @@ Aliases from the Modal deployment remain accepted during migration.
 | `OBJECT_STORAGE_SECRET_KEY` | yes | yes | S3 secret access key |
 | `OBJECT_STORAGE_REGION` | provider-specific | no | S3 region name |
 | `OBJECT_STORAGE_PUBLIC_URL` | yes | no | Public base URL before `/bucket/object`; legacy alias `MINIO_PUBLIC_URL` |
+| `GEOCODING_BASE_URL` | yes outside local/test | no | HTTPS LocationIQ-compatible search endpoint |
+| `GEOCODING_API_KEY` | yes outside local/test | yes | LocationIQ server access token |
 
 Pool tuning is available through `DATABASE_POOL_SIZE` (5),
 `DATABASE_MAX_OVERFLOW` (5), `DATABASE_POOL_TIMEOUT` (10 seconds),

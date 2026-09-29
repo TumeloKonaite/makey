@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { ListingCard } from "@/components/ListingCard";
+import { ListingsMap } from "@/components/map/ListingsMap";
 import { QuickFilters, type FilterState } from "@/components/QuickFilters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +55,8 @@ function ListingsPage() {
   const [agentFee, setAgentFee] = useState<string>("any");
   const [sort, setSort] = useState<string>("newest");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [quickFilters, setQuickFilters] = useState<FilterState>({
     category: "",
     priceRange: "",
@@ -62,8 +65,8 @@ function ListingsPage() {
     parking: false,
   });
 
-  const listings = listingsQ.data ?? [];
-  const categories = catsQ.data ?? [];
+  const listings = useMemo(() => listingsQ.data ?? [], [listingsQ.data]);
+  const categories = useMemo(() => catsQ.data ?? [], [catsQ.data]);
   const catName = (id: string) => categories.find((c) => c.id === id)?.name;
 
   const cities = useMemo(
@@ -171,6 +174,15 @@ function ListingsPage() {
     categories,
   ]);
 
+  const selectListing = useCallback((id: string) => {
+    setSelectedListingId(id);
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      document
+        .querySelector(`[data-listing-id="${id}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
+
   function reset() {
     setQ("");
     setCategory("all");
@@ -195,7 +207,7 @@ function ListingsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex-1 w-full">
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-10 flex-1 w-full">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
             <h1 className="font-serif text-4xl">Rooms to rent</h1>
@@ -211,7 +223,7 @@ function ListingsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="lg:hidden"
+              className="xl:hidden"
               onClick={() => setFiltersOpen((v) => !v)}
             >
               {filtersOpen ? "Hide filters" : "Filters"}
@@ -228,12 +240,35 @@ function ListingsPage() {
                 <SelectItem value="available">Available soonest</SelectItem>
               </SelectContent>
             </Select>
+            <div
+              className="flex lg:hidden rounded-lg border border-border p-0.5"
+              aria-label="Choose results view"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={mobileView === "list" ? "default" : "ghost"}
+                onClick={() => setMobileView("list")}
+                aria-pressed={mobileView === "list"}
+              >
+                List
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={mobileView === "map" ? "default" : "ghost"}
+                onClick={() => setMobileView("map")}
+                aria-pressed={mobileView === "map"}
+              >
+                Map
+              </Button>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="grid gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
           <aside
-            className={`${filtersOpen ? "block" : "hidden"} lg:block rounded-2xl border border-border bg-card p-5 space-y-4 h-fit lg:sticky lg:top-24`}
+            className={`${filtersOpen ? "block" : "hidden"} xl:block rounded-2xl border border-border bg-card p-5 space-y-4 h-fit xl:sticky xl:top-24`}
           >
             <div>
               <Label>Search</Label>
@@ -369,63 +404,87 @@ function ListingsPage() {
             </Button>
           </aside>
 
-          <section>
+          <section className="min-w-0">
             <QuickFilters filters={quickFilters} onChange={setQuickFilters} />
-
-            {listingsQ.isLoading && (
-              <div className="grid gap-6 sm:grid-cols-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="rounded-2xl border border-border bg-card overflow-hidden">
-                    <div className="aspect-[4/3] bg-muted animate-pulse" />
-                    <div className="p-4 space-y-2">
-                      <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
-                      <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
-                    </div>
+            <div className="grid gap-6 lg:grid-cols-[minmax(340px,0.9fr)_minmax(420px,1.1fr)]">
+              <div className={mobileView === "list" ? "block" : "hidden lg:block"}>
+                {listingsQ.isLoading && (
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-border bg-card overflow-hidden"
+                      >
+                        <div className="aspect-[4/3] bg-muted animate-pulse" />
+                        <div className="p-4 space-y-2">
+                          <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
+                          <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {listingsQ.isError && !listingsQ.isLoading && (
-              <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-10 text-center space-y-3">
-                <p className="font-serif text-xl text-foreground">
-                  We couldn't load rooms right now.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {(listingsQ.error as Error)?.message || "The rooms service isn't responding."}
-                </p>
-                <Button onClick={() => listingsQ.refetch()}>Retry</Button>
-              </div>
-            )}
+                {listingsQ.isError && !listingsQ.isLoading && (
+                  <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-10 text-center space-y-3">
+                    <p className="font-serif text-xl text-foreground">
+                      We couldn't load rooms right now.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {(listingsQ.error as Error)?.message || "The rooms service isn't responding."}
+                    </p>
+                    <Button onClick={() => listingsQ.refetch()}>Retry</Button>
+                  </div>
+                )}
 
-            {!listingsQ.isLoading && !listingsQ.isError && listings.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-                <p className="font-serif text-xl">No rooms found yet.</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  New rooms will appear here as owners publish them.
-                </p>
-              </div>
-            )}
+                {!listingsQ.isLoading && !listingsQ.isError && listings.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                    <p className="font-serif text-xl">No rooms found yet.</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      New rooms will appear here as owners publish them.
+                    </p>
+                  </div>
+                )}
 
-            {!listingsQ.isLoading &&
-              !listingsQ.isError &&
-              listings.length > 0 &&
-              filtered.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-                  <p className="text-muted-foreground">No rooms match those filters.</p>
-                  <Button variant="link" onClick={reset}>
-                    Clear filters
-                  </Button>
-                </div>
-              )}
+                {!listingsQ.isLoading &&
+                  !listingsQ.isError &&
+                  listings.length > 0 &&
+                  filtered.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                      <p className="text-muted-foreground">No rooms match those filters.</p>
+                      <Button variant="link" onClick={reset}>
+                        Clear filters
+                      </Button>
+                    </div>
+                  )}
 
-            {!listingsQ.isLoading && !listingsQ.isError && filtered.length > 0 && (
-              <div className="grid gap-6 sm:grid-cols-2">
-                {filtered.map((l) => (
-                  <ListingCard key={l.id} listing={l} categoryName={catName(l.category_id)} />
-                ))}
+                {!listingsQ.isLoading && !listingsQ.isError && filtered.length > 0 && (
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                    {filtered.map((l) => (
+                      <div
+                        key={l.id}
+                        data-listing-id={l.id}
+                        onMouseEnter={() => setSelectedListingId(l.id)}
+                        onFocus={() => setSelectedListingId(l.id)}
+                        className={`rounded-2xl transition-shadow ${selectedListingId === l.id ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
+                      >
+                        <ListingCard listing={l} categoryName={catName(l.category_id)} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              <aside
+                className={`${mobileView === "map" ? "block" : "hidden"} lg:block lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)]`}
+              >
+                <ListingsMap
+                  listings={filtered}
+                  selectedListingId={selectedListingId}
+                  onListingSelect={selectListing}
+                  className="h-[65vh] min-h-[420px] lg:h-full"
+                />
+              </aside>
+            </div>
           </section>
         </div>
       </main>

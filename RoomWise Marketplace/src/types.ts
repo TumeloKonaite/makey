@@ -91,3 +91,16 @@ export interface FastApiFieldError {
 export interface ApiErrorPayload {
   detail?: string | FastApiFieldError[];
 }
+export interface LocationResult {
+  display_name: string;
+  address_line?: string | null;
+  area?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+  country_code?: string | null;
+  latitude: string;
+  longitude: string;
+  provider: string;
+  place_id: string;
+}

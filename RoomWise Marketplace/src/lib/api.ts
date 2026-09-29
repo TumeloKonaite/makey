@@ -7,6 +7,7 @@ import type {
   Listing,
   ListingImage,
   ListingInput,
+  LocationResult,
 } from "@/types";
 
 export class ApiError extends Error {
@@ -107,6 +108,8 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 export const getCategories = () => request<Category[]>("/categories");
 export const getListings = () => request<Listing[]>("/listings");
 export const getListing = (id: string) => request<Listing>(`/listings/${id}`);
+export const searchLocations = (query: string, signal?: AbortSignal) =>
+  request<LocationResult[]>(`/locations/search?q=${encodeURIComponent(query)}`, { signal });
 // Admin (protected)
 export const getMyListings = () => request<Listing[]>("/me/listings", { auth: true });
 export const getMyListing = (id: string) => request<Listing>(`/me/listings/${id}`, { auth: true });

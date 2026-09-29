@@ -424,3 +424,30 @@ def test_legacy_listing_without_coordinates_remains_available(
     assert response.json()["area"] == "Observatory"
     assert response.json()["latitude"] is None
     assert response.json()["longitude"] is None
+
+
+def test_owner_location_update_is_preserved_by_unrelated_edits(client: TestClient) -> None:
+    override_user("admin-1", "admin")
+    location = {
+        "address_line": "12 Jorissen Street",
+        "area": "Braamfontein",
+        "city": "Johannesburg",
+        "province": "Gauteng",
+        "postal_code": "2001",
+        "country_code": "ZA",
+        "latitude": "-26.192900",
+        "longitude": "28.030500",
+        "geocoding_provider": "fake",
+        "geocoding_place_id": "braam-123",
+    }
+    response = client.patch(f"/listings/{draft_listing_id}", json=location)
+    assert response.status_code == 200
+    assert response.json()["latitude"] == "-26.192900"
+
+    response = client.patch(f"/listings/{draft_listing_id}", json={"title": "Edited title"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["address_line"] == "12 Jorissen Street"
+    assert body["latitude"] == "-26.192900"
+    assert body["longitude"] == "28.030500"
+    assert body["geocoding_place_id"] == "braam-123"

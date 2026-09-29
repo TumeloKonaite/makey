@@ -56,6 +56,11 @@ def get_migration_settings() -> MigrationSettings:
 
 class Settings(BaseSettings):
     app_name: str = Field(default="rooms-marketplace-api", alias="APP_NAME")
+    geocoding_base_url: str | None = Field(default=None, alias="GEOCODING_BASE_URL")
+    geocoding_api_key: str | None = Field(default=None, alias="GEOCODING_API_KEY")
+    geocoding_timeout_seconds: float = Field(default=4.0, alias="GEOCODING_TIMEOUT_SECONDS", gt=0, le=30)
+    geocoding_cache_ttl_seconds: int = Field(default=3600, alias="GEOCODING_CACHE_TTL_SECONDS", ge=0)
+    geocoding_cache_max_entries: int = Field(default=500, alias="GEOCODING_CACHE_MAX_ENTRIES", ge=1)
     app_env: str = Field(
         default="local",
         validation_alias=AliasChoices("ENVIRONMENT", "APP_ENV"),

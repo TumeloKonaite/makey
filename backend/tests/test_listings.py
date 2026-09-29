@@ -451,3 +451,80 @@ def test_owner_location_update_is_preserved_by_unrelated_edits(client: TestClien
     assert body["latitude"] == "-26.192900"
     assert body["longitude"] == "28.030500"
     assert body["geocoding_place_id"] == "braam-123"
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("min_rent=6500&max_rent=6500", 1),
+        (f"category_id={category_id}", 1),
+        ("city=Cape%20Town&area=observatory", 1),
+        ("furnished=true", 1),
+        ("furnished=false", 0),
+        ("q=utilities", 1),
+        ("available_by=2026-07-15", 1),
+        ("agent_fee=none", 0),
+        ("agent_fee=has", 1),
+    ],
+)
+def test_public_listing_filters(client: TestClient, query: str, expected: int) -> None:
+    response = client.get(f"/listings?{query}")
+    assert response.status_code == 200
+    assert len(response.json()) == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "south=-26&west=28&north=-25",
+        "south=-91&west=27&north=-25&east=29",
+        "south=-25&west=27&north=-26&east=29",
+        "south=-26&west=29&north=-25&east=27",
+        "min_rent=-1",
+        "min_rent=7000&max_rent=6000",
+        "agent_fee=maybe",
+    ],
+)
+def test_public_listing_rejects_invalid_search_ranges(client: TestClient, query: str) -> None:
+    response = client.get(f"/listings?{query}")
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
+
+def test_bounds_exclude_outside_and_coordinate_less_listings(client: TestClient) -> None:
+    override_user("admin-1", "admin")
+    inside = client.patch(
+        f"/listings/{published_listing_id}",
+        json={"latitude": "-26.192900", "longitude": "28.030500"},
+    )
+    assert inside.status_code == 200
+    outside = client.post(
+        "/listings",
+        json={
+            "category_id": str(category_id),
+            "title": "Cape Town room",
+            "price": "1",
+            "rent_amount": "4000",
+            "status": "published",
+            "latitude": "-33.924900",
+            "longitude": "18.424100",
+        },
+    )
+    assert outside.status_code == 201
+    without_coordinates = client.post(
+        "/listings",
+        json={
+            "category_id": str(category_id),
+            "title": "Unknown location room",
+            "price": "1",
+            "rent_amount": "4000",
+            "status": "published",
+        },
+    )
+    assert without_coordinates.status_code == 201
+
+    response = client.get(
+        "/listings?south=-26.25&west=27.95&north=-26.10&east=28.15&min_rent=6000&furnished=true"
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(published_listing_id)]

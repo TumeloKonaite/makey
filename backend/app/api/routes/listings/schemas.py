@@ -1,8 +1,61 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, computed_field
+from pydantic import (
+    AliasChoices,
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    model_validator,
+)
+
+
+class ListingSearchParams(BaseModel):
+    q: str | None = Field(default=None, min_length=1, max_length=200)
+    category_id: uuid.UUID | None = None
+    city: str | None = Field(default=None, min_length=1, max_length=160)
+    area: str | None = Field(default=None, min_length=1, max_length=160)
+    min_rent: Decimal | None = Field(default=None, ge=0)
+    max_rent: Decimal | None = Field(default=None, ge=0)
+    furnished: bool | None = None
+    available_by: date | None = None
+    agent_fee: Literal["none", "has"] | None = None
+    no_deposit: bool | None = None
+    utilities_included: bool | None = None
+    parking_available: bool | None = None
+    south: float | None = Field(default=None, ge=-90, le=90)
+    west: float | None = Field(default=None, ge=-180, le=180)
+    north: float | None = Field(default=None, ge=-90, le=90)
+    east: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "ListingSearchParams":
+        bounds = (self.south, self.west, self.north, self.east)
+        supplied_bounds = sum(value is not None for value in bounds)
+        if supplied_bounds not in (0, 4):
+            raise ValueError("south, west, north and east must be supplied together")
+        if supplied_bounds == 4:
+            assert self.south is not None and self.north is not None
+            assert self.west is not None and self.east is not None
+            if self.south >= self.north:
+                raise ValueError("south must be less than north")
+            if self.west >= self.east:
+                raise ValueError("west must be less than east")
+        if (
+            self.min_rent is not None
+            and self.max_rent is not None
+            and self.min_rent > self.max_rent
+        ):
+            raise ValueError("min_rent must be less than or equal to max_rent")
+        return self
+
+    @property
+    def has_bounds(self) -> bool:
+        return self.south is not None
 
 
 class ListingImageCreate(BaseModel):

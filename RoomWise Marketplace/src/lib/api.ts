@@ -7,6 +7,7 @@ import type {
   Listing,
   ListingImage,
   ListingInput,
+  ListingSearchParams,
   LocationResult,
 } from "@/types";
 
@@ -106,7 +107,33 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 
 // Public
 export const getCategories = () => request<Category[]>("/categories");
-export const getListings = () => request<Listing[]>("/listings");
+export function buildListingSearchParams(search: ListingSearchParams = {}): URLSearchParams {
+  const params = new URLSearchParams();
+  const values: [string, string | number | boolean | undefined][] = [
+    ["q", search.q?.trim() || undefined],
+    ["category_id", search.categoryId],
+    ["city", search.city],
+    ["area", search.area],
+    ["min_rent", search.minRent],
+    ["max_rent", search.maxRent],
+    ["furnished", search.furnished],
+    ["available_by", search.availableBy],
+    ["agent_fee", search.agentFee],
+    ["no_deposit", search.noDeposit],
+    ["utilities_included", search.utilitiesIncluded],
+    ["parking_available", search.parkingAvailable],
+    ["south", search.south],
+    ["west", search.west],
+    ["north", search.north],
+    ["east", search.east],
+  ];
+  for (const [key, value] of values) if (value !== undefined) params.set(key, String(value));
+  return params;
+}
+export const getListings = (search: ListingSearchParams = {}, signal?: AbortSignal) => {
+  const query = buildListingSearchParams(search).toString();
+  return request<Listing[]>(`/listings${query ? `?${query}` : ""}`, { signal });
+};
 export const getListing = (id: string) => request<Listing>(`/listings/${id}`);
 export const searchLocations = (query: string, signal?: AbortSignal) =>
   request<LocationResult[]>(`/locations/search?q=${encodeURIComponent(query)}`, { signal });

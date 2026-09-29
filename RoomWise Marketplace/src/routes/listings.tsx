@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { ListingCard } from "@/components/ListingCard";
@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { getCategories, getListings } from "@/lib/api";
-import { isAvailableNow } from "@/lib/format";
+import type { ListingSearchParams, MapBounds } from "@/types";
+import { listingQueryKey, scheduleViewportSearch } from "@/lib/listing-search";
 
 type SearchState = { category?: string; city?: string };
 
@@ -40,7 +41,6 @@ export const Route = createFileRoute("/listings")({
 
 function ListingsPage() {
   const search = Route.useSearch();
-  const listingsQ = useQuery({ queryKey: ["listings"], queryFn: getListings });
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: getCategories });
 
   const [q, setQ] = useState("");
@@ -64,9 +64,67 @@ function ListingsPage() {
     waterAndLights: false,
     parking: false,
   });
+  const [pendingBounds, setPendingBounds] = useState<MapBounds>();
+  const [mapBounds, setMapBounds] = useState<MapBounds>();
+  useEffect(() => scheduleViewportSearch(setMapBounds, pendingBounds), [pendingBounds]);
 
-  const listings = useMemo(() => listingsQ.data ?? [], [listingsQ.data]);
   const categories = useMemo(() => catsQ.data ?? [], [catsQ.data]);
+  const filters = useMemo<ListingSearchParams>(() => {
+    let quickMin: number | undefined;
+    let quickMax: number | undefined;
+    if (quickFilters.priceRange === "under-1500") quickMax = 1499.99;
+    if (quickFilters.priceRange === "1500-2500") {
+      quickMin = 1500;
+      quickMax = 2500;
+    }
+    if (quickFilters.priceRange === "above-2500") quickMin = 2500.01;
+    const enteredMin = minRent ? Number(minRent) : undefined;
+    const enteredMax = maxRent ? Number(maxRent) : undefined;
+    const categoryId =
+      category !== "all"
+        ? category
+        : categories.find((item) => item.slug === quickFilters.category)?.id;
+    return {
+      q: q.trim() || undefined,
+      categoryId,
+      city: city !== "all" ? city : undefined,
+      area: area !== "all" ? area : undefined,
+      minRent: enteredMin === undefined ? quickMin : Math.max(enteredMin, quickMin ?? enteredMin),
+      maxRent: enteredMax === undefined ? quickMax : Math.min(enteredMax, quickMax ?? enteredMax),
+      furnished: furnished === "any" ? undefined : furnished === "yes",
+      availableBy:
+        availability === "now"
+          ? new Date().toISOString().slice(0, 10)
+          : availability === "by" && availableBy
+            ? availableBy
+            : undefined,
+      agentFee: agentFee === "any" ? undefined : (agentFee as "none" | "has"),
+      noDeposit: quickFilters.noDepositOnly || undefined,
+      utilitiesIncluded: quickFilters.waterAndLights || undefined,
+      parkingAvailable: quickFilters.parking || undefined,
+      ...mapBounds,
+    };
+  }, [
+    q,
+    category,
+    city,
+    area,
+    minRent,
+    maxRent,
+    furnished,
+    availability,
+    availableBy,
+    agentFee,
+    quickFilters,
+    categories,
+    mapBounds,
+  ]);
+  const listingsQ = useQuery({
+    queryKey: listingQueryKey(filters, mapBounds),
+    queryFn: ({ signal }) => getListings(filters, signal),
+    placeholderData: (previous) => previous,
+  });
+  const listings = useMemo(() => listingsQ.data ?? [], [listingsQ.data]);
   const catName = (id: string) => categories.find((c) => c.id === id)?.name;
 
   const cities = useMemo(
@@ -87,58 +145,7 @@ function ListingsPage() {
   );
 
   const filtered = useMemo(() => {
-    let out = listings.slice();
-    const qq = q.trim().toLowerCase();
-    if (qq) {
-      out = out.filter(
-        (l) =>
-          l.title.toLowerCase().includes(qq) ||
-          (l.description || "").toLowerCase().includes(qq) ||
-          (l.area || "").toLowerCase().includes(qq) ||
-          (l.location || "").toLowerCase().includes(qq),
-      );
-    }
-    if (category !== "all") out = out.filter((l) => l.category_id === category);
-    if (city !== "all") out = out.filter((l) => l.location === city);
-    if (area !== "all") out = out.filter((l) => l.area === area);
-    const minN = Number(minRent);
-    const maxN = Number(maxRent);
-    if (minRent && Number.isFinite(minN)) out = out.filter((l) => Number(l.rent_amount) >= minN);
-    if (maxRent && Number.isFinite(maxN)) out = out.filter((l) => Number(l.rent_amount) <= maxN);
-    if (furnished !== "any") {
-      const want = furnished === "yes";
-      out = out.filter((l) => l.is_furnished === want);
-    }
-    if (availability === "now") out = out.filter((l) => isAvailableNow(l.available_date));
-    if (availability === "by" && availableBy) {
-      const t = new Date(availableBy).getTime();
-      out = out.filter((l) => l.available_date && new Date(l.available_date).getTime() <= t);
-    }
-    if (agentFee === "none") out = out.filter((l) => !l.agent_fee || Number(l.agent_fee) === 0);
-    if (agentFee === "has") out = out.filter((l) => l.agent_fee && Number(l.agent_fee) > 0);
-    if (quickFilters.category) {
-      out = out.filter((l) => {
-        const listingCategory = categories.find((c) => c.id === l.category_id);
-        return (
-          l.category_id === quickFilters.category || listingCategory?.slug === quickFilters.category
-        );
-      });
-    }
-    if (quickFilters.priceRange) {
-      out = out.filter((l) => {
-        const rent = Number(l.rent_amount);
-        if (quickFilters.priceRange === "under-1500") return rent < 1500;
-        if (quickFilters.priceRange === "1500-2500") return rent >= 1500 && rent <= 2500;
-        if (quickFilters.priceRange === "above-2500") return rent > 2500;
-        return true;
-      });
-    }
-    if (quickFilters.noDepositOnly) {
-      out = out.filter((l) => !l.deposit_amount || Number(l.deposit_amount) === 0);
-    }
-    if (quickFilters.waterAndLights) out = out.filter((l) => l.utilities_included);
-    if (quickFilters.parking) out = out.filter((l) => l.parking_available);
-
+    const out = listings.slice();
     switch (sort) {
       case "price-asc":
         out.sort((a, b) => Number(a.rent_amount) - Number(b.rent_amount));
@@ -147,32 +154,15 @@ function ListingsPage() {
         out.sort((a, b) => Number(b.rent_amount) - Number(a.rent_amount));
         break;
       case "available":
-        out.sort((a, b) => {
-          const da = a.available_date ? new Date(a.available_date).getTime() : Infinity;
-          const db = b.available_date ? new Date(b.available_date).getTime() : Infinity;
-          return da - db;
-        });
-        break;
-      default:
+        out.sort(
+          (a, b) =>
+            (a.available_date ? Date.parse(a.available_date) : Infinity) -
+            (b.available_date ? Date.parse(b.available_date) : Infinity),
+        );
         break;
     }
     return out;
-  }, [
-    listings,
-    q,
-    category,
-    city,
-    area,
-    minRent,
-    maxRent,
-    furnished,
-    availability,
-    availableBy,
-    agentFee,
-    sort,
-    quickFilters,
-    categories,
-  ]);
+  }, [listings, sort]);
 
   const selectListing = useCallback((id: string) => {
     setSelectedListingId(id);
@@ -212,11 +202,13 @@ function ListingsPage() {
           <div>
             <h1 className="font-serif text-4xl">Rooms to rent</h1>
             <p className="text-muted-foreground mt-1">
-              {listingsQ.isLoading
-                ? "Loading rooms…"
-                : listingsQ.isError
-                  ? "Couldn't load rooms."
-                  : `${filtered.length} ${filtered.length === 1 ? "room" : "rooms"} found`}
+              {listingsQ.isFetching && !listingsQ.isLoading
+                ? `Updating… ${filtered.length} ${filtered.length === 1 ? "room" : "rooms"} shown`
+                : listingsQ.isLoading
+                  ? "Loading rooms…"
+                  : listingsQ.isError
+                    ? "Couldn't load rooms."
+                    : `${filtered.length} ${filtered.length === 1 ? "room" : "rooms"} found`}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -425,7 +417,7 @@ function ListingsPage() {
                   </div>
                 )}
 
-                {listingsQ.isError && !listingsQ.isLoading && (
+                {listingsQ.isError && !listingsQ.isLoading && listings.length === 0 && (
                   <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-10 text-center space-y-3">
                     <p className="font-serif text-xl text-foreground">
                       We couldn't load rooms right now.
@@ -434,6 +426,15 @@ function ListingsPage() {
                       {(listingsQ.error as Error)?.message || "The rooms service isn't responding."}
                     </p>
                     <Button onClick={() => listingsQ.refetch()}>Retry</Button>
+                  </div>
+                )}
+
+                {listingsQ.isError && listings.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                    Results could not be refreshed. Showing the last successful search.
+                    <Button variant="link" size="sm" onClick={() => listingsQ.refetch()}>
+                      Retry
+                    </Button>
                   </div>
                 )}
 
@@ -446,19 +447,16 @@ function ListingsPage() {
                   </div>
                 )}
 
-                {!listingsQ.isLoading &&
-                  !listingsQ.isError &&
-                  listings.length > 0 &&
-                  filtered.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-                      <p className="text-muted-foreground">No rooms match those filters.</p>
-                      <Button variant="link" onClick={reset}>
-                        Clear filters
-                      </Button>
-                    </div>
-                  )}
+                {!listingsQ.isLoading && listings.length > 0 && filtered.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+                    <p className="text-muted-foreground">No rooms match those filters.</p>
+                    <Button variant="link" onClick={reset}>
+                      Clear filters
+                    </Button>
+                  </div>
+                )}
 
-                {!listingsQ.isLoading && !listingsQ.isError && filtered.length > 0 && (
+                {!listingsQ.isLoading && filtered.length > 0 && (
                   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
                     {filtered.map((l) => (
                       <div
@@ -481,6 +479,7 @@ function ListingsPage() {
                   listings={filtered}
                   selectedListingId={selectedListingId}
                   onListingSelect={selectListing}
+                  onBoundsChange={setPendingBounds}
                   className="h-[65vh] min-h-[420px] lg:h-full"
                 />
               </aside>

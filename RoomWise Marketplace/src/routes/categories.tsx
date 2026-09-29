@@ -20,7 +20,7 @@ export const Route = createFileRoute("/categories")({
 
 function CategoriesPage() {
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: getCategories });
-  const listingsQ = useQuery({ queryKey: ["listings"], queryFn: getListings });
+  const listingsQ = useQuery({ queryKey: ["listings"], queryFn: () => getListings() });
 
   const countFor = (id: string) =>
     (listingsQ.data ?? []).filter((l) => l.category_id === id).length;

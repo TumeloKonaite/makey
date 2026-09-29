@@ -158,10 +158,26 @@ def test_public_listing_detail_returns_published_listing(client: TestClient) -> 
     assert body["area"] == "Observatory"
 
 
-
-def test_public_locations_are_stable_approximations_but_owner_keeps_exact(client: TestClient) -> None:
+def test_public_locations_are_stable_approximations_but_owner_keeps_exact(
+    client: TestClient,
+) -> None:
     override_user("admin-1", "admin")
-    created = client.post("/listings", json={"category_id": str(category_id), "title": "Private point", "price": "1000", "rent_amount": "1000", "address_line": "12 Exact Street", "city": "Cape Town", "latitude": "-33.940000", "longitude": "18.470000", "geocoding_provider": "test-provider", "geocoding_place_id": "exact-place-id", "status": "published"}).json()
+    created = client.post(
+        "/listings",
+        json={
+            "category_id": str(category_id),
+            "title": "Private point",
+            "price": "1000",
+            "rent_amount": "1000",
+            "address_line": "12 Exact Street",
+            "city": "Cape Town",
+            "latitude": "-33.940000",
+            "longitude": "18.470000",
+            "geocoding_provider": "test-provider",
+            "geocoding_place_id": "exact-place-id",
+            "status": "published",
+        },
+    ).json()
     listing_id = created["id"]
     first = client.get(f"/listings/{listing_id}").json()
     second = client.get(f"/listings/{listing_id}").json()
@@ -171,7 +187,11 @@ def test_public_locations_are_stable_approximations_but_owner_keeps_exact(client
     assert first["geocoding_provider"] == "approximate"
     owner = client.get(f"/me/listings/{listing_id}").json()
     assert owner["latitude"] == "-33.940000" and owner["longitude"] == "18.470000"
-    assert owner["address_line"] == "12 Exact Street" and owner["geocoding_place_id"] == "exact-place-id"
+    assert (
+        owner["address_line"] == "12 Exact Street"
+        and owner["geocoding_place_id"] == "exact-place-id"
+    )
+
 
 def test_public_listing_detail_returns_404_for_draft_listing(client: TestClient) -> None:
     response = client.get(f"/listings/{draft_listing_id}")

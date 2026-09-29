@@ -47,6 +47,7 @@ module "rooms_backend" {
     OBJECT_STORAGE_REGION     = var.object_storage_region
     OBJECT_STORAGE_BUCKET     = var.object_storage_bucket
     OBJECT_STORAGE_PUBLIC_URL = var.object_storage_public_url
+    GEOCODING_BASE_URL        = var.geocoding_base_url
   })
   secrets = merge(var.secrets, {
     database-url              = var.database_url
@@ -54,6 +55,7 @@ module "rooms_backend" {
     clerk-webhook-secret      = var.clerk_webhook_secret
     object-storage-access-key = var.object_storage_access_key
     object-storage-secret-key = var.object_storage_secret_key
+    geocoding-api-key         = var.geocoding_api_key
   })
   secret_environment_variables = merge(var.secret_environment_variables, {
     DATABASE_URL              = "database-url"
@@ -61,6 +63,7 @@ module "rooms_backend" {
     CLERK_WEBHOOK_SECRET      = "clerk-webhook-secret"
     OBJECT_STORAGE_ACCESS_KEY = "object-storage-access-key"
     OBJECT_STORAGE_SECRET_KEY = "object-storage-secret-key"
+    GEOCODING_API_KEY         = "geocoding-api-key"
   })
   migration_secret_environment_variables = { DATABASE_URL = "database-url" }
   tags = merge(var.tags, {

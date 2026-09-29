@@ -161,6 +161,19 @@ def test_production_cors_rejects_preview_origin_when_preview_support_is_disabled
     assert "access-control-allow-origin" not in blocked.headers
 
 
+def test_missing_production_geocoder_fails_clearly() -> None:
+    with pytest.raises(ValidationError, match="GEOCODING_BASE_URL"):
+        _production_settings(GEOCODING_BASE_URL="")
+
+    with pytest.raises(ValidationError, match="GEOCODING_API_KEY"):
+        _production_settings(GEOCODING_API_KEY="")
+
+
+def test_insecure_production_geocoder_fails_clearly() -> None:
+    with pytest.raises(ValidationError, match="must use HTTPS"):
+        _production_settings(GEOCODING_BASE_URL="http://geocoder.example.com/search")
+
+
 def test_missing_production_frontend_origin_fails_clearly() -> None:
     with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
         _production_settings(FRONTEND_ORIGIN="")
@@ -285,6 +298,8 @@ def _production_settings(**overrides: str) -> Settings:
         "MINIO_BUCKET_LISTING_IMAGES": "listing-images",
         "CLERK_SECRET_KEY": "sk_test_example",
         "CLERK_WEBHOOK_SIGNING_SECRET": "whsec_example",
+        "GEOCODING_BASE_URL": "https://eu1.locationiq.com/v1/search",
+        "GEOCODING_API_KEY": "locationiq-test-token",
     }
     values.update(overrides)
     return Settings(**values)

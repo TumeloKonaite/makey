@@ -73,6 +73,7 @@ jobs:
       TF_VAR_database_url: ${{ secrets.TF_VAR_DATABASE_URL }}
       TF_VAR_clerk_secret_key: ${{ secrets.TF_VAR_CLERK_SECRET_KEY }}
       TF_VAR_clerk_webhook_secret: ${{ secrets.TF_VAR_CLERK_WEBHOOK_SECRET }}
+      TF_VAR_geocoding_api_key: ${{ secrets.TF_VAR_GEOCODING_API_KEY }}
 
       TF_VAR_object_storage_access_key: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY }}
       TF_VAR_object_storage_secret_key: ${{ secrets.OBJECT_STORAGE_SECRET_KEY }}
@@ -514,6 +515,11 @@ jobs:
           categories="$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://${fqdn}/categories")"
           jq -e 'type == "array"' <<<"${categories}" >/dev/null
 
+          for query in Sandton 'Cape Town' Soweto; do
+            locations="$(curl --fail --silent --show-error --get --data-urlencode "q=${query}" --proto '=https' --tlsv1.2 "https://${fqdn}/locations/search")"
+            jq -e 'type == "array" and length > 0 and all(.[]; .country_code == "ZA" and (.display_name | length > 0) and (.latitude | length > 0) and (.longitude | length > 0))' <<<"${locations}" >/dev/null
+          done
+
           IFS=',' read -ra frontend_origins <<<"${FRONTEND_ORIGIN}"
           [[ "${#frontend_origins[@]}" -gt 0 ]] || {
             echo "::error::No production frontend origins were configured"
@@ -598,6 +604,7 @@ jobs:
             echo "- HTTPS/TLS and public /health: passed"
             echo "- /ready dependencies: passed"
             echo "- PostgreSQL-backed GET /categories: passed"
+            echo "- Location searches for Sandton, Cape Town, and Soweto: passed"
             echo "- CORS for all configured frontend origins: passed"
             echo "- Immutable deployed image and digest: passed"
             echo "- Registry authentication: user-assigned managed identity"

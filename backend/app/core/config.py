@@ -188,6 +188,9 @@ class Settings(BaseSettings):
             )
         self._validate_external_service("MINIO_ENDPOINT", self.minio_endpoint)
         self._validate_external_service("MINIO_PUBLIC_URL", self.minio_public_url)
+        self._validate_external_service("GEOCODING_BASE_URL", self.geocoding_base_url or "")
+        self._validate_https("GEOCODING_BASE_URL", self.geocoding_base_url or "")
+        self._validate_required("GEOCODING_API_KEY", self.geocoding_api_key or "")
         self._validate_required("MINIO_BUCKET_LISTING_IMAGES", self.minio_bucket_listing_images)
         self._validate_required("MINIO_ROOT_USER", self.minio_root_user)
         self._validate_required("MINIO_ROOT_PASSWORD", self.minio_root_password)
@@ -254,6 +257,10 @@ class Settings(BaseSettings):
     def _validate_required(self, name: str, value: str) -> None:
         if not (value or "").strip():
             raise ValueError(f"{name} must be set when APP_ENV is not local.")
+
+    def _validate_https(self, name: str, value: str) -> None:
+        if urlparse(value).scheme.lower() != "https":
+            raise ValueError(f"{name} must use HTTPS when APP_ENV is not local.")
 
     def _validate_database_tls(self, name: str, value: str) -> None:
         parsed = urlparse(value)

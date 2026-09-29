@@ -43,6 +43,7 @@ tags, and do not allow forked pull requests to access it.
 
 Environment secrets:
 
+- `TF_VAR_GEOCODING_API_KEY` (LocationIQ server token)
 - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
 - `TF_VAR_database_url`, `TF_VAR_clerk_secret_key`,
   `TF_VAR_clerk_webhook_secret`
@@ -58,7 +59,7 @@ Environment variables:
 - `TF_STATE_RESOURCE_GROUP`, `TF_STATE_STORAGE_ACCOUNT`
 
 The production Terraform root supplies the confirmed non-secret GCS endpoint,
-region, bucket, and public URL directly. Do not duplicate them in
+region, bucket, and public URL directly. The production root also supplies the non-secret LocationIQ EU endpoint; the token is mapped from the protected secret. See the [production geocoding runbook](./production-geocoding.md). Do not duplicate them in
 `TF_VAR_environment_variables`. See the
 [production object-storage runbook](./production-object-storage.md).
 

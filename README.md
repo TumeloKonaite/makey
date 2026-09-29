@@ -59,6 +59,8 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
+Spatial location storage uses nullable `latitude` and `longitude` columns in the ORM so SQLite-backed unit tests and legacy rows remain portable. The PostgreSQL migration derives a stored PostGIS `geography(Point, 4326)` column named `coordinates` and adds a GiST index for spatial queries. Local Compose uses the PostGIS PostgreSQL image.
+
 Run tests from `backend/`:
 
 ```bash

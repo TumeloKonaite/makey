@@ -48,6 +48,15 @@ class ListingCreate(BaseModel):
     parking_available: bool | None = None
     max_occupants: int | None = None
     area: str | None = None
+    address_line: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    latitude: Decimal | None = Field(default=None, ge=-90, le=90)
+    longitude: Decimal | None = Field(default=None, ge=-180, le=180)
+    geocoding_provider: str | None = None
+    geocoding_place_id: str | None = None
     currency: str = "ZAR"
     location: str | None = None
     status: str = "draft"
@@ -68,6 +77,15 @@ class ListingUpdate(BaseModel):
     parking_available: bool | None = None
     max_occupants: int | None = None
     area: str | None = None
+    address_line: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    latitude: Decimal | None = Field(default=None, ge=-90, le=90)
+    longitude: Decimal | None = Field(default=None, ge=-180, le=180)
+    geocoding_provider: str | None = None
+    geocoding_place_id: str | None = None
     currency: str | None = None
     location: str | None = None
     status: str | None = None
@@ -97,6 +115,15 @@ class ListingRead(BaseModel):
     parking_available: bool | None = None
     max_occupants: int | None = None
     area: str | None = None
+    address_line: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    latitude: Decimal | None = Field(default=None, ge=-90, le=90)
+    longitude: Decimal | None = Field(default=None, ge=-180, le=180)
+    geocoding_provider: str | None = None
+    geocoding_place_id: str | None = None
     currency: str
     location: str | None = None
     status: str

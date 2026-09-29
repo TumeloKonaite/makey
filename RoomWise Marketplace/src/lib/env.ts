@@ -34,3 +34,9 @@ export const API_BASE_URL = normalizeOriginLikeUrl(
   "VITE_API_BASE_URL",
   readRequiredEnv("VITE_API_BASE_URL", LOCAL_API_BASE_URL),
 );
+// OpenFreeMap serves an OSM-derived MapLibre style. Deployments can override it.
+export const MAP_STYLE_URL =
+  typeof import.meta.env.VITE_MAP_STYLE_URL === "string" &&
+  import.meta.env.VITE_MAP_STYLE_URL.trim()
+    ? import.meta.env.VITE_MAP_STYLE_URL.trim()
+    : "https://tiles.openfreemap.org/styles/liberty";

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mapMock = vi.hoisted(() => ({
   shouldThrow: false,
+  layers: [] as Array<{ id: string; layout?: { "text-font"?: string[] } }>,
   instances: [] as Array<{
     emit: (name: string, event?: unknown) => void;
     removed: boolean;
@@ -31,7 +32,9 @@ vi.mock("maplibre-gl", () => {
     }
     addControl() {}
     addSource() {}
-    addLayer() {}
+    addLayer(layer: { id: string; layout?: { "text-font"?: string[] } }) {
+      mapMock.layers.push(layer);
+    }
     getSource() {}
     getLayer() {}
     loaded() {
@@ -78,6 +81,7 @@ describe("ListingsMap failures", () => {
   beforeEach(() => {
     mapMock.shouldThrow = false;
     mapMock.instances.length = 0;
+    mapMock.layers.length = 0;
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ({}) as never);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
@@ -95,6 +99,21 @@ describe("ListingsMap failures", () => {
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("Loading map");
+  });
+
+  it("uses a glyph font served by the OpenFreeMap style", async () => {
+    render(<ListingsMap listings={[]} className="h-96" />);
+    await waitFor(() => expect(mapMock.instances).toHaveLength(1));
+
+    mapMock.instances[0].emit("load");
+
+    const symbolLayers = mapMock.layers.filter((layer) =>
+      ["listing-cluster-count", "listing-prices"].includes(layer.id),
+    );
+    expect(symbolLayers).toHaveLength(2);
+    expect(
+      symbolLayers.every((layer) => layer.layout?.["text-font"]?.[0] === "Noto Sans Regular"),
+    ).toBe(true);
   });
 
   it("shows the fallback immediately when the MapLibre worker cannot start", async () => {

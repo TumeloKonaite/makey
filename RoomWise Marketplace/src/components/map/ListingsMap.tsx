@@ -188,6 +188,7 @@ export function ListingsMap({
           filter: ["has", "point_count"],
           layout: {
             "text-field": ["concat", ["get", "point_count_abbreviated"], " rooms"],
+            "text-font": ["Noto Sans Regular"],
             "text-size": 12,
           },
           paint: { "text-color": "#fff" },
@@ -199,6 +200,7 @@ export function ListingsMap({
           filter: ["!", ["has", "point_count"]],
           layout: {
             "text-field": ["get", "price"],
+            "text-font": ["Noto Sans Regular"],
             "text-size": 12,
             "text-padding": 8,
             "text-allow-overlap": true,

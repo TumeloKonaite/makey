@@ -25,6 +25,22 @@ interface Props {
   submitting?: boolean;
 }
 
+export function buildListingPayload(f: ListingInput): ListingInput {
+  const rent = String(f.rent_amount || "0");
+  return {
+    ...f,
+    rent_amount: rent,
+    price: rent,
+    deposit_amount: f.deposit_amount || null,
+    agent_fee: f.agent_fee || null,
+    available_date: f.available_date || null,
+    area: f.area || null,
+    location: f.location || null,
+    description: f.description || null,
+    max_occupants: f.max_occupants ? Number(f.max_occupants) : null,
+  };
+}
+
 export function AdminListingForm({
   categories,
   initial,
@@ -82,28 +98,11 @@ export function AdminListingForm({
     }));
   async function handle(e: React.FormEvent) {
     e.preventDefault();
-    // ensure price mirrors rent_amount
-    const rent = String(f.rent_amount || "0");
-    const payload: ListingInput = {
-      ...f,
-      rent_amount: rent,
-      price: rent,
-      deposit_amount: f.deposit_amount || null,
-      agent_fee: f.agent_fee || null,
-      available_date: f.available_date || null,
-      area: f.area || null,
-      location: f.location || null,
-      description: f.description || null,
-      max_occupants: f.max_occupants ? Number(f.max_occupants) : null,
-    };
-    await onSubmit(payload);
+    await onSubmit(buildListingPayload(f));
   }
 
   return (
     <form onSubmit={handle} className="space-y-6">
-      address_line: f.address_line || null, city: f.city || null, province: f.province || null,
-      postal_code: f.postal_code || null, latitude: f.latitude || null, longitude: f.longitude ||
-      null,
       {errors.form && (
         <p className="text-sm text-destructive bg-destructive/10 rounded p-3">{errors.form}</p>
       )}

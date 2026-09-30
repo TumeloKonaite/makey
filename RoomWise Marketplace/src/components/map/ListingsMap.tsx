@@ -1,5 +1,6 @@
 import * as maplibregl from "maplibre-gl";
 import { LngLatBounds } from "maplibre-gl";
+import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Listing, MapBounds } from "@/types";
 import { MAP_STYLE_URL } from "@/lib/env";
@@ -10,6 +11,8 @@ import {
   sanitizeMapErrorMessage,
   type MapRuntimeDiagnostic,
 } from "./map-runtime";
+
+maplibregl.setWorkerUrl(mapLibreWorkerUrl);
 
 const SOURCE = "roomwise-listings";
 const STYLE_LOAD_TIMEOUT_MS = 15_000;
@@ -115,6 +118,10 @@ export function ListingsMap({
     }
     const onError = (event: maplibregl.ErrorEvent) => {
       const diagnostic = createDiagnostic("runtime", event.error, map, webglAvailable);
+      if (diagnostic.resourceType === "worker" || diagnostic.resourceType === "webgl") {
+        fail(diagnostic, event.error);
+        return;
+      }
       reportMapFailure(diagnostic, event.error);
       // MapLibre emits this event for individual tile, glyph, sprite, and other
       // recoverable resource failures. Keep waiting for the style's load event;

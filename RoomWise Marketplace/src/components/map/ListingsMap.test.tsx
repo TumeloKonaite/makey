@@ -58,6 +58,7 @@ vi.mock("maplibre-gl", () => {
   }
   return {
     Map: MockMap,
+    setWorkerUrl: vi.fn(),
     NavigationControl: class {},
     AttributionControl: class {},
     LngLatBounds: class {
@@ -94,6 +95,17 @@ describe("ListingsMap failures", () => {
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("Loading map");
+  });
+
+  it("shows the fallback immediately when the MapLibre worker cannot start", async () => {
+    render(<ListingsMap listings={[]} className="h-96" />);
+    await waitFor(() => expect(mapMock.instances).toHaveLength(1));
+
+    mapMock.instances[0].emit("error", {
+      error: new Error("Worker failed to load. Check that the worker URL is correct."),
+    });
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
   });
 
   it("keeps loading after a recoverable MapLibre resource error", async () => {

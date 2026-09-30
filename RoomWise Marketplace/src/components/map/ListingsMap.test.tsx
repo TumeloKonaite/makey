@@ -111,8 +111,9 @@ describe("ListingsMap failures", () => {
       ["listing-cluster-count", "listing-prices"].includes(layer.id),
     );
     expect(symbolLayers).toHaveLength(2);
-    expect(symbolLayers.every((layer) => layer.layout?.["text-font"]?.[0] === "Noto Sans Regular"))
-      .toBe(true);
+    expect(
+      symbolLayers.every((layer) => layer.layout?.["text-font"]?.[0] === "Noto Sans Regular"),
+    ).toBe(true);
   });
 
   it("shows the fallback immediately when the MapLibre worker cannot start", async () => {

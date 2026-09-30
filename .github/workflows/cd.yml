@@ -382,10 +382,24 @@ jobs:
             exit 1
           }
 
-          actual_digest="$(az acr repository show \
-            --name "${ACR_NAME}" \
-            --image "${ACR_REPOSITORY}:${{ steps.image.outputs.sha }}" \
-            --query digest --output tsv --only-show-errors)"
+          actual_digest=""
+          for attempt in {1..6}; do
+            if actual_digest="$(az acr repository show \
+              --name "${ACR_NAME}" \
+              --image "${ACR_REPOSITORY}:${{ steps.image.outputs.sha }}" \
+              --query digest --output tsv --only-show-errors 2>"${RUNNER_TEMP}/acr-digest-error.log")"; then
+              break
+            fi
+
+            if [[ "${attempt}" -eq 6 ]]; then
+              cat "${RUNNER_TEMP}/acr-digest-error.log" >&2
+              echo "::error::ACR digest verification failed after 6 attempts"
+              exit 1
+            fi
+
+            echo "::warning::ACR digest verification attempt ${attempt} failed; retrying in 10 seconds"
+            sleep 10
+          done
           [[ "${actual_digest}" == "${EXPECTED_DIGEST}" ]] || {
             echo "::error::Deployed SHA tag no longer resolves to the published digest"
             exit 1

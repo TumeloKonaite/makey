@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mapMock = vi.hoisted(() => ({
   shouldThrow: false,
@@ -72,6 +72,8 @@ import { ListingsMap } from "./ListingsMap";
 import { classifyMapError, sanitizeMapErrorMessage } from "./map-runtime";
 
 describe("ListingsMap failures", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     mapMock.shouldThrow = false;
     mapMock.instances.length = 0;
@@ -94,7 +96,7 @@ describe("ListingsMap failures", () => {
     expect(screen.getByRole("status").textContent).toContain("Loading map");
   });
 
-  it("handles an asynchronous MapLibre error without affecting adjacent results", async () => {
+  it("keeps loading after a recoverable MapLibre resource error", async () => {
     render(
       <div>
         <a href="/listings/example">Example room</a>
@@ -103,9 +105,15 @@ describe("ListingsMap failures", () => {
     );
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
 
-    mapMock.instances[0].emit("error", { error: new Error("style request blocked by CSP") });
+    mapMock.instances[0].emit("error", { error: new Error("Could not load one vector tile") });
 
-    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("Loading map");
+
+    mapMock.instances[0].emit("load");
+
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(
       screen.getByRole<HTMLAnchorElement>("link", { name: "Example room" }).getAttribute("href"),
     ).toBe("/listings/example");

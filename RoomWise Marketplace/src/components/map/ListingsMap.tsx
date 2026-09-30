@@ -116,9 +116,9 @@ export function ListingsMap({
     const onError = (event: maplibregl.ErrorEvent) => {
       const diagnostic = createDiagnostic("runtime", event.error, map, webglAvailable);
       reportMapFailure(diagnostic, event.error);
-      // Resource failures after the first complete render may be recoverable. Keep
-      // the usable map visible, while still reporting every MapLibre error.
-      if (!didLoad) setStatus("error");
+      // MapLibre emits this event for individual tile, glyph, sprite, and other
+      // recoverable resource failures. Keep waiting for the style's load event;
+      // the style timeout handles failures that actually prevent rendering.
     };
     map.on("error", onError);
     const styleTimer = window.setTimeout(() => {

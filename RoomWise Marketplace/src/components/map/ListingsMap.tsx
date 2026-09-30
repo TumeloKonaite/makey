@@ -1,11 +1,19 @@
 import * as maplibregl from "maplibre-gl";
 import { LngLatBounds } from "maplibre-gl";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Listing, MapBounds } from "@/types";
 import { MAP_STYLE_URL } from "@/lib/env";
+import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { formatMapPrice, getMappableListings } from "./map-utils";
+import {
+  classifyMapError,
+  sanitizeMapErrorMessage,
+  type MapRuntimeDiagnostic,
+} from "./map-runtime";
 
 const SOURCE = "roomwise-listings";
+const STYLE_LOAD_TIMEOUT_MS = 15_000;
+type MapStatus = "loading" | "ready" | "error";
 export interface MapViewport {
   center: [number, number];
   zoom: number;
@@ -37,6 +45,8 @@ export function ListingsMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const initialFit = useRef(false);
+  const [status, setStatus] = useState<MapStatus>("loading");
+  const [retryKey, setRetryKey] = useState(0);
   const handlers = useRef({ onListingSelect, onViewportChange });
   handlers.current = { onListingSelect, onViewportChange };
   const mappable = useMemo(() => getMappableListings(listings), [listings]);
@@ -65,14 +75,64 @@ export function ListingsMap({
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: styleUrl,
-      center:
-        initialCenter ?? (mappable[0] ? [mappable[0].longitude, mappable[0].latitude] : [24, -29]),
-      zoom: initialZoom ?? (mappable[0] ? 11 : 5),
-      attributionControl: false,
-    });
+    let removed = false;
+    let didLoad = false;
+    const webglAvailable = hasWebGLSupport();
+    const fail = (diagnostic: MapRuntimeDiagnostic, error?: unknown) => {
+      if (removed) return;
+      reportMapFailure(diagnostic, error);
+      setStatus("error");
+    };
+
+    setStatus("loading");
+    initialFit.current = false;
+    if (!webglAvailable) {
+      fail({
+        stage: "preflight",
+        message: "WebGL is unavailable in this browser.",
+        resourceType: "webgl",
+        mapLoaded: false,
+        styleLoaded: false,
+        webglAvailable,
+      });
+      return;
+    }
+
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: styleUrl,
+        center:
+          initialCenter ??
+          (mappable[0] ? [mappable[0].longitude, mappable[0].latitude] : [24, -29]),
+        zoom: initialZoom ?? (mappable[0] ? 11 : 5),
+        attributionControl: false,
+      });
+    } catch (error) {
+      fail(createDiagnostic("constructor", error, undefined, webglAvailable), error);
+      return;
+    }
+    const onError = (event: maplibregl.ErrorEvent) => {
+      const diagnostic = createDiagnostic("runtime", event.error, map, webglAvailable);
+      reportMapFailure(diagnostic, event.error);
+      // Resource failures after the first complete render may be recoverable. Keep
+      // the usable map visible, while still reporting every MapLibre error.
+      if (!didLoad) setStatus("error");
+    };
+    map.on("error", onError);
+    const styleTimer = window.setTimeout(() => {
+      if (!didLoad) {
+        fail({
+          stage: "style-timeout",
+          message: "The map style did not finish loading.",
+          resourceType: "style",
+          mapLoaded: map.loaded(),
+          styleLoaded: Boolean(map.isStyleLoaded()),
+          webglAvailable,
+        });
+      }
+    }, STYLE_LOAD_TIMEOUT_MS);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(
       new maplibregl.AttributionControl({
@@ -92,92 +152,103 @@ export function ListingsMap({
     };
     map.on("moveend", report);
     map.on("load", () => {
-      map.addSource(SOURCE, {
-        type: "geojson",
-        data: geojson,
-        cluster: true,
-        clusterMaxZoom: 13,
-        clusterRadius: 54,
-      });
-      map.addLayer({
-        id: "listing-clusters",
-        type: "circle",
-        source: SOURCE,
-        filter: ["has", "point_count"],
-        paint: {
-          "circle-color": "#173f35",
-          "circle-radius": ["step", ["get", "point_count"], 20, 10, 25, 40, 32],
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 3,
-        },
-      });
-      map.addLayer({
-        id: "listing-cluster-count",
-        type: "symbol",
-        source: SOURCE,
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": ["concat", ["get", "point_count_abbreviated"], " rooms"],
-          "text-size": 12,
-        },
-        paint: { "text-color": "#fff" },
-      });
-      map.addLayer({
-        id: "listing-prices",
-        type: "symbol",
-        source: SOURCE,
-        filter: ["!", ["has", "point_count"]],
-        layout: {
-          "text-field": ["get", "price"],
-          "text-size": 12,
-          "text-padding": 8,
-          "text-allow-overlap": true,
-        },
-        paint: pricePaint(selectedListingId, highlightedListingId),
-      });
-      map.on("click", "listing-clusters", async (event) => {
-        const feature = map.queryRenderedFeatures(event.point, { layers: ["listing-clusters"] })[0];
-        const clusterId = feature?.properties?.cluster_id;
-        if (clusterId == null) return;
-        const zoom = await (
-          map.getSource(SOURCE) as maplibregl.GeoJSONSource
-        ).getClusterExpansionZoom(clusterId);
-        map.easeTo({
-          center: (feature.geometry as { coordinates: [number, number] }).coordinates,
-          zoom,
+      didLoad = true;
+      window.clearTimeout(styleTimer);
+      try {
+        map.addSource(SOURCE, {
+          type: "geojson",
+          data: geojson,
+          cluster: true,
+          clusterMaxZoom: 13,
+          clusterRadius: 54,
         });
-        window.dispatchEvent(
-          new CustomEvent("roomwise:analytics", { detail: { event: "cluster_expanded" } }),
-        );
-      });
-      map.on("click", "listing-prices", (event) => {
-        const id = event.features?.[0]?.properties?.id;
-        if (id) {
-          handlers.current.onListingSelect?.(id);
+        map.addLayer({
+          id: "listing-clusters",
+          type: "circle",
+          source: SOURCE,
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": "#173f35",
+            "circle-radius": ["step", ["get", "point_count"], 20, 10, 25, 40, 32],
+            "circle-stroke-color": "#fff",
+            "circle-stroke-width": 3,
+          },
+        });
+        map.addLayer({
+          id: "listing-cluster-count",
+          type: "symbol",
+          source: SOURCE,
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["concat", ["get", "point_count_abbreviated"], " rooms"],
+            "text-size": 12,
+          },
+          paint: { "text-color": "#fff" },
+        });
+        map.addLayer({
+          id: "listing-prices",
+          type: "symbol",
+          source: SOURCE,
+          filter: ["!", ["has", "point_count"]],
+          layout: {
+            "text-field": ["get", "price"],
+            "text-size": 12,
+            "text-padding": 8,
+            "text-allow-overlap": true,
+          },
+          paint: pricePaint(selectedListingId, highlightedListingId),
+        });
+        map.on("click", "listing-clusters", async (event) => {
+          const feature = map.queryRenderedFeatures(event.point, {
+            layers: ["listing-clusters"],
+          })[0];
+          const clusterId = feature?.properties?.cluster_id;
+          if (clusterId == null) return;
+          const zoom = await (
+            map.getSource(SOURCE) as maplibregl.GeoJSONSource
+          ).getClusterExpansionZoom(clusterId);
+          map.easeTo({
+            center: (feature.geometry as { coordinates: [number, number] }).coordinates,
+            zoom,
+          });
           window.dispatchEvent(
-            new CustomEvent("roomwise:analytics", {
-              detail: { event: "marker_selected", listingId: id },
-            }),
+            new CustomEvent("roomwise:analytics", { detail: { event: "cluster_expanded" } }),
           );
+        });
+        map.on("click", "listing-prices", (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (id) {
+            handlers.current.onListingSelect?.(id);
+            window.dispatchEvent(
+              new CustomEvent("roomwise:analytics", {
+                detail: { event: "marker_selected", listingId: id },
+              }),
+            );
+          }
+        });
+        for (const layer of ["listing-clusters", "listing-prices"]) {
+          map.on("mouseenter", layer, () => {
+            map.getCanvas().style.cursor = "pointer";
+          });
+          map.on("mouseleave", layer, () => {
+            map.getCanvas().style.cursor = "";
+          });
         }
-      });
-      for (const layer of ["listing-clusters", "listing-prices"]) {
-        map.on("mouseenter", layer, () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", layer, () => {
-          map.getCanvas().style.cursor = "";
-        });
+        report();
+        setStatus("ready");
+      } catch (error) {
+        fail(createDiagnostic("layer-setup", error, map, webglAvailable), error);
       }
-      report();
     });
     mapRef.current = map;
     return () => {
+      removed = true;
+      window.clearTimeout(styleTimer);
       mapRef.current = null;
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [styleUrl]);
+  }, [styleUrl, retryKey]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -217,16 +288,85 @@ export function ListingsMap({
     >
       <div
         ref={containerRef}
-        className="absolute inset-0"
+        className={`absolute inset-0 ${status === "error" ? "invisible" : ""}`}
         role="application"
         aria-label={`Interactive map showing ${mappable.length} approximate room locations`}
+        aria-hidden={status === "error"}
       />
+      {status === "loading" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted" role="status">
+          <p className="text-sm text-muted-foreground">Loading map…</p>
+        </div>
+      )}
+      {status === "error" && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-muted p-6 text-center"
+          role="alert"
+        >
+          <div className="max-w-sm">
+            <p className="font-serif text-xl text-foreground">Map temporarily unavailable</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              You can still browse every room in the listing results.
+            </p>
+            <button
+              type="button"
+              className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setRetryKey((value) => value + 1)}
+            >
+              Retry map
+            </button>
+          </div>
+        </div>
+      )}
       <p className="sr-only">
         Map pins show approximate areas. Use the accessible listing results to browse every room.
       </p>
     </div>
   );
 }
+
+function hasWebGLSupport(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return sanitizeMapErrorMessage(error.message);
+  if (error && typeof error === "object" && "message" in error) {
+    return sanitizeMapErrorMessage(String((error as { message: unknown }).message));
+  }
+  return "Unknown MapLibre error";
+}
+
+function createDiagnostic(
+  stage: MapRuntimeDiagnostic["stage"],
+  error: unknown,
+  map: maplibregl.Map | undefined,
+  webglAvailable: boolean,
+): MapRuntimeDiagnostic {
+  const message = errorMessage(error);
+  return {
+    stage,
+    message,
+    resourceType: classifyMapError(message),
+    mapLoaded: map?.loaded() ?? false,
+    styleLoaded: map?.isStyleLoaded() ?? false,
+    webglAvailable,
+  };
+}
+
+function reportMapFailure(diagnostic: MapRuntimeDiagnostic, error?: unknown) {
+  const safeError = new Error(diagnostic.message, {
+    cause: error instanceof Error ? error.name : undefined,
+  });
+  console.error("MapLibre runtime error", diagnostic, safeError);
+  reportLovableError(safeError, { component: "ListingsMap", ...diagnostic });
+}
+
 function pricePaint(
   selected?: string | null,
   highlighted?: string | null,

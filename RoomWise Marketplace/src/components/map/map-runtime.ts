@@ -1,33 +1,37 @@
 import type { StyleSpecification } from "maplibre-gl";
 
-const NULLABLE_REF_LENGTH_LAYERS = new Set([
-  "highway-shield-non-us",
-  "highway-shield-us-interstate",
-  "road_shield_us",
-]);
-
 export function normalizeMapStyle(style: StyleSpecification): StyleSpecification {
   return {
     ...style,
     layers: style.layers.map((layer) =>
-      NULLABLE_REF_LENGTH_LAYERS.has(layer.id) && "filter" in layer && layer.filter
-        ? { ...layer, filter: guardNullableRefLength(layer.filter) as typeof layer.filter }
+      "filter" in layer && layer.filter
+        ? { ...layer, filter: guardNullableNumericComparisons(layer.filter) as typeof layer.filter }
         : layer,
     ),
   };
 }
 
-function guardNullableRefLength(expression: unknown): unknown {
+function guardNullableNumericComparisons(expression: unknown): unknown {
   if (!Array.isArray(expression)) return expression;
-  if (
-    expression[0] === "<=" &&
-    Array.isArray(expression[1]) &&
-    expression[1][0] === "get" &&
-    expression[1][1] === "ref_length"
-  ) {
-    return ["<=", ["coalesce", expression[1], Number.MAX_SAFE_INTEGER], ...expression.slice(2)];
+  const children = expression.map(guardNullableNumericComparisons);
+  const operator = children[0];
+  if (!["<", "<=", ">", ">="].includes(String(operator))) return children;
+
+  if (isGetExpression(children[1])) {
+    const fallback =
+      operator === "<" || operator === "<=" ? Number.MAX_SAFE_INTEGER : Number.MIN_SAFE_INTEGER;
+    children[1] = ["coalesce", children[1], fallback];
   }
-  return expression.map(guardNullableRefLength);
+  if (isGetExpression(children[2])) {
+    const fallback =
+      operator === "<" || operator === "<=" ? Number.MIN_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+    children[2] = ["coalesce", children[2], fallback];
+  }
+  return children;
+}
+
+function isGetExpression(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value[0] === "get";
 }
 
 export interface MapRuntimeDiagnostic {

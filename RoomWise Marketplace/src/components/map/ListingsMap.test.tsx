@@ -154,22 +154,20 @@ describe("ListingsMap failures", () => {
     ).toBe("/listings/example");
   });
 
-  it("guards nullable road-shield lengths before MapLibre evaluates the style", () => {
+  it("guards nullable numeric filters before MapLibre evaluates the style", () => {
     const style = {
       version: 8,
       sources: {},
       layers: [
         {
-          id: "highway-shield-non-us",
-          type: "symbol",
-          filter: ["all", ["<=", ["get", "ref_length"], 6]],
-          layout: {},
-        },
-        {
-          id: "unrelated-layer",
-          type: "symbol",
-          filter: ["<=", ["get", "ref_length"], 6],
-          layout: {},
+          id: "boundary_3",
+          type: "line",
+          filter: [
+            "all",
+            [">=", ["get", "admin_level"], 3],
+            ["<=", ["get", "admin_level"], 6],
+            ["!=", ["get", "maritime"], 1],
+          ],
         },
       ],
     } as unknown as StyleSpecification;
@@ -177,9 +175,13 @@ describe("ListingsMap failures", () => {
     const normalized = normalizeMapStyle(style);
 
     expect(normalized.layers[0]).toMatchObject({
-      filter: ["all", ["<=", ["coalesce", ["get", "ref_length"], Number.MAX_SAFE_INTEGER], 6]],
+      filter: [
+        "all",
+        [">=", ["coalesce", ["get", "admin_level"], Number.MIN_SAFE_INTEGER], 3],
+        ["<=", ["coalesce", ["get", "admin_level"], Number.MAX_SAFE_INTEGER], 6],
+        ["!=", ["get", "maritime"], 1],
+      ],
     });
-    expect(normalized.layers[1]).toEqual(style.layers[1]);
   });
 
   it.each([

@@ -105,7 +105,7 @@ describe("ListingsMap failures", () => {
     render(<ListingsMap listings={[]} className="h-96" />);
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
 
-    mapMock.instances[0].emit("load");
+    mapMock.instances[0].emit("style.load");
 
     const symbolLayers = mapMock.layers.filter((layer) =>
       ["listing-cluster-count", "listing-prices"].includes(layer.id),

@@ -17,6 +17,7 @@ maplibregl.setWorkerUrl(mapLibreWorkerUrl);
 
 const SOURCE = "roomwise-listings";
 const STYLE_LOAD_TIMEOUT_MS = 15_000;
+const BOOTSTRAP_STYLE: maplibregl.StyleSpecification = { version: 8, sources: {}, layers: [] };
 type MapStatus = "loading" | "ready" | "error";
 export interface MapViewport {
   center: [number, number];
@@ -106,6 +107,7 @@ export function ListingsMap({
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
+        style: BOOTSTRAP_STYLE,
         center:
           initialCenter ??
           (mappable[0] ? [mappable[0].longitude, mappable[0].latitude] : [24, -29]),
@@ -253,12 +255,14 @@ export function ListingsMap({
         fail(createDiagnostic("layer-setup", error, map, webglAvailable), error);
       }
     };
-    map.on("style.load", initializeStyle);
-    // Retain `load` as a fallback for styles/runtimes that do not emit the
-    // MapLibre-specific `style.load` event.
-    map.on("load", initializeStyle);
-    map.setStyle(styleUrl, {
-      transformStyle: (_previousStyle, nextStyle) => normalizeMapStyle(nextStyle),
+    map.once("load", () => {
+      map.on("style.load", initializeStyle);
+      // Retain `load` as a fallback for styles/runtimes that do not emit the
+      // MapLibre-specific `style.load` event.
+      map.on("load", initializeStyle);
+      map.setStyle(styleUrl, {
+        transformStyle: (_previousStyle, nextStyle) => normalizeMapStyle(nextStyle),
+      });
     });
     mapRef.current = map;
     return () => {

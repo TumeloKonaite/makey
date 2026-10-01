@@ -24,7 +24,15 @@ vi.mock("maplibre-gl", () => {
       if (callback) this.handlers.set(name, [...(this.handlers.get(name) ?? []), callback]);
       return this;
     }
-    once() {
+    once(name: string, handler: (event?: unknown) => void) {
+      const onceHandler = (event?: unknown) => {
+        this.handlers.set(
+          name,
+          (this.handlers.get(name) ?? []).filter((candidate) => candidate !== onceHandler),
+        );
+        handler(event);
+      };
+      this.handlers.set(name, [...(this.handlers.get(name) ?? []), onceHandler]);
       return this;
     }
     emit(name: string, event: unknown = {}) {
@@ -109,6 +117,7 @@ describe("ListingsMap failures", () => {
     render(<ListingsMap listings={[]} className="h-96" />);
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
 
+    mapMock.instances[0].emit("load");
     mapMock.instances[0].emit("style.load");
 
     const symbolLayers = mapMock.layers.filter((layer) =>
@@ -146,6 +155,7 @@ describe("ListingsMap failures", () => {
     expect(screen.getByRole("status").textContent).toContain("Loading map");
 
     mapMock.instances[0].emit("load");
+    mapMock.instances[0].emit("style.load");
 
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     expect(screen.queryByRole("alert")).toBeNull();

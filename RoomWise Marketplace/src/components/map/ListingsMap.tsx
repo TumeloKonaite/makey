@@ -8,6 +8,7 @@ import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { formatMapPrice, getMappableListings } from "./map-utils";
 import {
   classifyMapError,
+  normalizeMapStyle,
   sanitizeMapErrorMessage,
   type MapRuntimeDiagnostic,
 } from "./map-runtime";
@@ -105,7 +106,6 @@ export function ListingsMap({
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: styleUrl,
         center:
           initialCenter ??
           (mappable[0] ? [mappable[0].longitude, mappable[0].latitude] : [24, -29]),
@@ -257,6 +257,9 @@ export function ListingsMap({
     // Retain `load` as a fallback for styles/runtimes that do not emit the
     // MapLibre-specific `style.load` event.
     map.on("load", initializeStyle);
+    map.setStyle(styleUrl, {
+      transformStyle: (_previousStyle, nextStyle) => normalizeMapStyle(nextStyle),
+    });
     mapRef.current = map;
     return () => {
       removed = true;

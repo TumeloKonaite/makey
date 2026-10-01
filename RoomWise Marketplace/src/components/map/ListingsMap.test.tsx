@@ -31,6 +31,9 @@ vi.mock("maplibre-gl", () => {
       this.handlers.get(name)?.forEach((handler) => handler(event));
     }
     addControl() {}
+    setStyle() {
+      return this;
+    }
     addSource() {}
     addLayer(layer: { id: string; layout?: { "text-font"?: string[] } }) {
       mapMock.layers.push(layer);
@@ -73,7 +76,8 @@ vi.mock("maplibre-gl", () => {
 vi.mock("@/lib/lovable-error-reporting", () => ({ reportLovableError: vi.fn() }));
 
 import { ListingsMap } from "./ListingsMap";
-import { classifyMapError, sanitizeMapErrorMessage } from "./map-runtime";
+import type { StyleSpecification } from "maplibre-gl";
+import { classifyMapError, normalizeMapStyle, sanitizeMapErrorMessage } from "./map-runtime";
 
 describe("ListingsMap failures", () => {
   afterEach(cleanup);
@@ -148,6 +152,34 @@ describe("ListingsMap failures", () => {
     expect(
       screen.getByRole<HTMLAnchorElement>("link", { name: "Example room" }).getAttribute("href"),
     ).toBe("/listings/example");
+  });
+
+  it("guards nullable road-shield lengths before MapLibre evaluates the style", () => {
+    const style = {
+      version: 8,
+      sources: {},
+      layers: [
+        {
+          id: "highway-shield-non-us",
+          type: "symbol",
+          filter: ["all", ["<=", ["get", "ref_length"], 6]],
+          layout: {},
+        },
+        {
+          id: "unrelated-layer",
+          type: "symbol",
+          filter: ["<=", ["get", "ref_length"], 6],
+          layout: {},
+        },
+      ],
+    } as unknown as StyleSpecification;
+
+    const normalized = normalizeMapStyle(style);
+
+    expect(normalized.layers[0]).toMatchObject({
+      filter: ["all", ["<=", ["coalesce", ["get", "ref_length"], Number.MAX_SAFE_INTEGER], 6]],
+    });
+    expect(normalized.layers[1]).toEqual(style.layers[1]);
   });
 
   it.each([

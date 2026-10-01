@@ -158,7 +158,11 @@ export function ListingsMap({
       });
     };
     map.on("moveend", report);
-    map.on("load", () => {
+    const initializeStyle = () => {
+      // `style.load` fires as soon as the style is ready for custom sources and
+      // layers. Waiting for `load` also waits for every initial tile, which can
+      // leave the loading scrim covering an otherwise usable map on slow links.
+      if (didLoad) return;
       didLoad = true;
       window.clearTimeout(styleTimer);
       try {
@@ -248,7 +252,11 @@ export function ListingsMap({
       } catch (error) {
         fail(createDiagnostic("layer-setup", error, map, webglAvailable), error);
       }
-    });
+    };
+    map.on("style.load", initializeStyle);
+    // Retain `load` as a fallback for styles/runtimes that do not emit the
+    // MapLibre-specific `style.load` event.
+    map.on("load", initializeStyle);
     mapRef.current = map;
     return () => {
       removed = true;
@@ -303,8 +311,13 @@ export function ListingsMap({
         aria-hidden={status === "error"}
       />
       {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted" role="status">
-          <p className="text-sm text-muted-foreground">Loading map…</p>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-4 flex justify-center"
+          role="status"
+        >
+          <p className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
+            Loading map…
+          </p>
         </div>
       )}
       {status === "error" && (

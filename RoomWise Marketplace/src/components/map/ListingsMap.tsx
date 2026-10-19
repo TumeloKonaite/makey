@@ -256,10 +256,13 @@ export function ListingsMap({
       }
     };
     map.once("load", () => {
-      map.on("style.load", initializeStyle);
-      // Retain `load` as a fallback for styles/runtimes that do not emit the
-      // MapLibre-specific `style.load` event.
-      map.on("load", initializeStyle);
+      // Do not register a second `load` handler from inside this bootstrap
+      // `load` handler. Event emitters may include that new handler in the
+      // event currently being dispatched, which would mark the empty
+      // bootstrap style as ready and report its viewport before the real
+      // OpenFreeMap style has loaded. `style.load` is the MapLibre event for
+      // the replacement style installed by setStyle.
+      map.once("style.load", initializeStyle);
       map.setStyle(styleUrl, {
         transformStyle: (_previousStyle, nextStyle) => normalizeMapStyle(nextStyle),
       });

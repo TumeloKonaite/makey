@@ -118,6 +118,10 @@ describe("ListingsMap failures", () => {
     await waitFor(() => expect(mapMock.instances).toHaveLength(1));
 
     mapMock.instances[0].emit("load");
+
+    expect(mapMock.layers).toHaveLength(0);
+    expect(screen.getByRole("status").textContent).toContain("Loading map");
+
     mapMock.instances[0].emit("style.load");
 
     const symbolLayers = mapMock.layers.filter((layer) =>
